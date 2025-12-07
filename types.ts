@@ -63,8 +63,6 @@ export interface User {
   status: 'Active' | 'Inactive' | 'Pending' | 'Suspended';
   lastLogin?: string;
   requiresPasswordChange?: boolean;
-  passwordHash?: string;
-  createdAt?: string;
 }
 
 export interface OnboardingToken {

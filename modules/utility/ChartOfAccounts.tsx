@@ -6,8 +6,27 @@ import { ModernInput } from '../../components/ui/ModernInput';
 import { Plus, Search, Sparkles, FolderTree, ArrowRight, Edit, Trash2, X, Save, AlertCircle, CheckCircle, Upload, FileText, Scan, Layers, ChevronDown, ChevronRight, PieChart, Hash, Folder, CreditCard, CornerDownRight, Check, Image as ImageIcon, FileCheck, Info, ShieldAlert } from 'lucide-react';
 import { COAAccount, AccountType } from '../../types';
 import { suggestCOACode, generateCOAFromDocument } from '../../services/geminiService';
-import { accountService } from '../../services/accountService';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const COA_STORAGE_KEY = 'nexus_coa';
+
+const INITIAL_COA: COAAccount[] = [
+  { code: '10000', name: 'Non-Current Assets', type: AccountType.ASSET, balance: 0, isSystem: true },
+  { code: '11000', name: 'Property, Plant & Equip.', type: AccountType.ASSET, parentCode: '10000', balance: 1250000 },
+  { code: '12000', name: 'Intangible Assets', type: AccountType.ASSET, parentCode: '10000', balance: 50000 },
+  { code: '20000', name: 'Current Assets', type: AccountType.ASSET, balance: 0, isSystem: true },
+  { code: '20100', name: 'Cash & Equivalents', type: AccountType.ASSET, parentCode: '20000', balance: 0, isSystem: true },
+  { code: '20110', name: 'Operating Account (USD)', type: AccountType.ASSET, parentCode: '20100', balance: 150000 },
+  { code: '20120', name: 'Petty Cash', type: AccountType.ASSET, parentCode: '20100', balance: 2500 },
+  { code: '30000', name: 'Liabilities', type: AccountType.LIABILITY, balance: 0, isSystem: true },
+  { code: '30100', name: 'Accounts Payable', type: AccountType.LIABILITY, parentCode: '30000', balance: 45000 },
+  { code: '40000', name: 'Equity', type: AccountType.EQUITY, balance: 0, isSystem: true },
+  { code: '40100', name: 'Retained Earnings', type: AccountType.EQUITY, parentCode: '40000', balance: 850000 },
+  { code: '50000', name: 'Revenue', type: AccountType.REVENUE, balance: 0, isSystem: true },
+  { code: '50100', name: 'Sales Revenue', type: AccountType.REVENUE, parentCode: '50000', balance: 500000 },
+  { code: '60000', name: 'Expenses', type: AccountType.EXPENSE, balance: 0, isSystem: true },
+  { code: '60100', name: 'Rent Expense', type: AccountType.EXPENSE, parentCode: '60000', balance: 12000 },
+];
 
 const IFRS_TEMPLATE: COAAccount[] = [
     { code: '10000', name: 'Non-current Assets', type: AccountType.ASSET, isSystem: true, balance: 0 },
@@ -38,15 +57,23 @@ export const ChartOfAccounts: React.FC = () => {
   const [formError, setFormError] = useState('');
   const [isGroupAccount, setIsGroupAccount] = useState(false);
 
-  // Load from Service
+  // Load from Storage
   useEffect(() => {
-      loadData();
+      const stored = localStorage.getItem(COA_STORAGE_KEY);
+      if (stored) {
+          setAccounts(JSON.parse(stored));
+      } else {
+          setAccounts(INITIAL_COA);
+          localStorage.setItem(COA_STORAGE_KEY, JSON.stringify(INITIAL_COA));
+      }
   }, []);
 
-  const loadData = async () => {
-      const data = await accountService.getAll();
-      setAccounts(data);
-  };
+  // Save to Storage
+  useEffect(() => {
+      if (accounts.length > 0) {
+          localStorage.setItem(COA_STORAGE_KEY, JSON.stringify(accounts));
+      }
+  }, [accounts]);
 
   const stats = useMemo(() => {
       return {
@@ -96,7 +123,7 @@ export const ChartOfAccounts: React.FC = () => {
     setIsSuggesting(false);
   };
 
-  const acceptSuggestion = async () => {
+  const acceptSuggestion = () => {
     if (!suggestion) return;
     const newAccount: COAAccount = {
       code: suggestion.code,
@@ -104,8 +131,7 @@ export const ChartOfAccounts: React.FC = () => {
       type: suggestion.type as AccountType,
       balance: 0
     };
-    await accountService.save(newAccount);
-    await loadData();
+    setAccounts(prev => [...prev, newAccount].sort((a, b) => a.code.localeCompare(b.code)));
     setAiInput('');
     setSuggestion(null);
   };
@@ -133,7 +159,7 @@ export const ChartOfAccounts: React.FC = () => {
       reader.readAsDataURL(scanFile);
   };
 
-  const importExtractedAccount = async (acc: any) => {
+  const importExtractedAccount = (acc: any) => {
       const newAccount: COAAccount = {
           code: acc.suggestedCode,
           name: acc.name,
@@ -141,8 +167,7 @@ export const ChartOfAccounts: React.FC = () => {
           balance: 0
       };
       if (!accounts.some(a => a.code === newAccount.code)) {
-          await accountService.save(newAccount);
-          await loadData();
+          setAccounts(prev => [...prev, newAccount].sort((a, b) => a.code.localeCompare(b.code)));
       }
       setExtractedAccounts(prev => prev.filter(p => p.suggestedCode !== acc.suggestedCode));
   };
@@ -164,7 +189,7 @@ export const ChartOfAccounts: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (code: string) => {
+  const handleDelete = (code: string) => {
     const account = accounts.find(a => a.code === code);
     if (!account) return;
     
@@ -185,12 +210,11 @@ export const ChartOfAccounts: React.FC = () => {
     }
 
     if (window.confirm(`Are you sure you want to delete account ${code} - ${account.name}? This action cannot be undone.`)) {
-        await accountService.delete(code);
-        await loadData();
+        setAccounts(accounts.filter(a => a.code !== code));
     }
   };
 
-  const handleSave = async (addAnother: boolean = false) => {
+  const handleSave = (addAnother: boolean = false) => {
       setFormError('');
 
       if (!formData.code || !formData.name || !formData.type) {
@@ -230,12 +254,11 @@ export const ChartOfAccounts: React.FC = () => {
           isSystem: editingAccount ? editingAccount.isSystem : false 
       };
 
-      await accountService.save(finalAccount);
-      await loadData();
-
       if (editingAccount) {
+          setAccounts(prev => prev.map(a => a.code === editingAccount.code ? finalAccount : a));
           setShowModal(false);
       } else {
+          setAccounts(prev => [...prev, finalAccount].sort((a, b) => a.code.localeCompare(b.code)));
           if (addAnother) {
               setFormData({ type: formData.type, parentCode: formData.parentCode, balance: 0, code: '' }); 
           } else {
@@ -244,16 +267,17 @@ export const ChartOfAccounts: React.FC = () => {
       }
   };
   
-  const handleLoadIFRS = async () => {
+  const handleLoadIFRS = () => {
       if (!window.confirm("Load Standard IFRS Template? Existing accounts will be preserved.")) return;
       let addedCount = 0;
-      for (const templateAcc of IFRS_TEMPLATE) {
-          if (!accounts.some(existing => existing.code === templateAcc.code)) {
-              await accountService.save(templateAcc);
+      const newAccounts = [...accounts];
+      IFRS_TEMPLATE.forEach(templateAcc => {
+          if (!newAccounts.some(existing => existing.code === templateAcc.code)) {
+              newAccounts.push(templateAcc);
               addedCount++;
           }
-      }
-      await loadData();
+      });
+      setAccounts(newAccounts.sort((a, b) => a.code.localeCompare(b.code)));
       alert(`Successfully added ${addedCount} IFRS standard accounts.`);
   };
 

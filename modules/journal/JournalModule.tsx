@@ -5,23 +5,59 @@ import { JournalEntryForm } from './JournalEntryForm';
 import { JournalEnquiry } from './JournalEnquiry';
 import { JournalUpload } from './JournalUpload';
 import { PlusCircle, Search, UploadCloud, TrendingUp, AlertCircle, FileCheck, BarChart3 } from 'lucide-react';
-import { JournalEntry, JournalStatus } from '../../types';
+import { JournalEntry, JournalStatus, JournalType } from '../../types';
 import { Card } from '../../components/ui/UtilityComponents';
-import { journalService } from '../../services/journalService';
+import { authService } from '../../services/authService';
+
+const JOURNALS_KEY = 'nexus_journals';
+
+// Mock DB - Only for Company ID '1' (Demo)
+const DEMO_JOURNALS: JournalEntry[] = [
+    {
+        journalNumber: 'JE-100452',
+        reference: 'PAYROLL-JAN',
+        transactionDate: '2025-01-25',
+        postingDate: '2025-01-25T14:30:00.000Z',
+        type: JournalType.GENERAL,
+        description: 'Monthly payroll processing for January 2025 including tax and benefits allocations',
+        currency: 'USD',
+        exchangeRate: 1,
+        reportingCurrency: 'USD',
+        status: JournalStatus.POSTED,
+        userId: 'SYS-ADMIN',
+        period: '01-2025',
+        totalAmount: 125000,
+        lines: [
+            { id: '1', accountId: '50100', accountName: 'Salaries Expense', debit: 125000, credit: 0, costCenter: 'HR' },
+            { id: '2', accountId: '10110', accountName: 'Cash in Bank', debit: 0, credit: 125000 }
+        ]
+    }
+];
 
 export const JournalModule: React.FC<{ initialTab?: string }> = ({ initialTab }) => {
     const [activeTab, setActiveTab] = useState(initialTab || 'new');
     const [entries, setEntries] = useState<JournalEntry[]>([]);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    // Load Data via Service
+    // Initial Data Load
     useEffect(() => {
-        loadData();
-    }, [activeTab]); // Reload on tab switch to catch updates
+        const user = authService.getSession();
+        const stored = localStorage.getItem(JOURNALS_KEY);
+        let loadedEntries: JournalEntry[] = stored ? JSON.parse(stored) : [];
 
-    const loadData = async () => {
-        const data = await journalService.getAll();
-        setEntries(data);
+        if (user) {
+            // If no data exists and it's the demo company, seed it
+            if (loadedEntries.length === 0 && user.companyId === '1') {
+                loadedEntries = DEMO_JOURNALS;
+                localStorage.setItem(JOURNALS_KEY, JSON.stringify(loadedEntries));
+            }
+            setEntries(loadedEntries);
+        }
+    }, []);
+
+    const saveEntries = (newEntries: JournalEntry[]) => {
+        setEntries(newEntries);
+        localStorage.setItem(JOURNALS_KEY, JSON.stringify(newEntries));
     };
 
     // Sync with prop navigation
@@ -34,21 +70,42 @@ export const JournalModule: React.FC<{ initialTab?: string }> = ({ initialTab })
         if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTop = 0;
         }
+        // Reload persistence on tab change to catch uploads
+        const stored = localStorage.getItem(JOURNALS_KEY);
+        if (stored) setEntries(JSON.parse(stored));
     }, [activeTab]);
 
     // Calculate Quick Stats
     const postedCount = entries.filter(e => e.status === JournalStatus.POSTED).length;
     const totalVolume = entries.reduce((acc, curr) => acc + curr.totalAmount, 0);
 
-    const handlePost = async (entry: JournalEntry) => {
-        await journalService.save(entry);
-        await loadData();
+    const handlePost = (entry: JournalEntry) => {
+        const updated = [entry, ...entries];
+        saveEntries(updated);
         setActiveTab('enquiry');
     };
 
-    const handleReverse = async (original: JournalEntry) => {
-        await journalService.reverse(original);
-        await loadData();
+    const handleReverse = (original: JournalEntry) => {
+        const reversalLines = original.lines.map(l => ({
+            ...l,
+            id: Math.random().toString(),
+            debit: l.credit,
+            credit: l.debit
+        }));
+
+        const reversal: JournalEntry = {
+            ...original,
+            journalNumber: `JE-${Math.floor(200000 + Math.random() * 900000)}`,
+            reference: `REV-${original.journalNumber}`,
+            description: `Reversal of Journal ${original.journalNumber} - ${original.description.substring(0, 50)}...`,
+            type: JournalType.REVERSAL,
+            status: JournalStatus.POSTED,
+            lines: reversalLines,
+            postingDate: new Date().toISOString(),
+            transactionDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '-') 
+        };
+
+        saveEntries([reversal, ...entries]);
     };
 
     const tabs = [

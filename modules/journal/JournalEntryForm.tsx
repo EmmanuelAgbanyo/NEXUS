@@ -6,7 +6,6 @@ import { ProfessionalDropdown } from '../../components/ui/ProfessionalDropdown';
 import { JournalType, JournalLine, AccountType, JournalEntry, JournalStatus, COAAccount } from '../../types';
 import { Plus, Trash2, Save, Send, AlertCircle, Calculator, Search, CheckCircle, Clock, CalendarDays, Globe, Undo, Redo, Sparkles, Loader2, FileText, Hash, Coins, ChevronDown, RefreshCw } from 'lucide-react';
 import { suggestJournalLines } from '../../services/geminiService';
-import { accountService } from '../../services/accountService';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Constants
@@ -139,11 +138,11 @@ export const JournalEntryForm: React.FC<{ onPost: (entry: JournalEntry) => void 
     const { type, reference, date, description, currency, exchangeRate, reportingCurrency, lines } = formState;
 
     useEffect(() => {
-        const loadAccounts = async () => {
-            const accounts = await accountService.getAll();
-            setCoa(accounts);
-        };
-        loadAccounts();
+        // Load COA from system persistence
+        const stored = localStorage.getItem('nexus_coa');
+        if (stored) {
+            setCoa(JSON.parse(stored));
+        }
     }, []);
 
     // Helpers

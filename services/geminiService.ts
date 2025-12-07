@@ -1,8 +1,8 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 
-// Ensure API Key is available - Safely check for process to avoid browser reference errors
-const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
+// Ensure API Key is available
+const apiKey = process.env.API_KEY || '';
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const suggestCOACode = async (accountName: string, existingAccounts: {code: string, name: string}[]) => {

@@ -9,10 +9,31 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GLAnalytics } from './GLAnalytics';
 import { authService } from '../../services/authService';
 import { dataService } from '../../services/dataService';
-import { journalService } from '../../services/journalService';
 import { useToast } from '../../components/ui/Toast';
 
 // ... (Constants, FilterSection, Props interfaces kept same) ...
+const DEMO_GL_DATA: JournalEntry[] = [
+    // ... (Keep existing mock data for fallback) ...
+    {
+        journalNumber: 'JE-100452',
+        reference: 'PAYROLL-JAN',
+        transactionDate: '2025-01-25',
+        postingDate: '2025-01-25T14:30:00.000Z',
+        type: JournalType.GENERAL,
+        description: 'Monthly payroll processing for January',
+        currency: 'USD',
+        exchangeRate: 1,
+        reportingCurrency: 'USD',
+        status: JournalStatus.POSTED,
+        userId: 'SYS-ADMIN',
+        period: '01-2025',
+        totalAmount: 125000,
+        lines: [
+            { id: '1', accountId: '50100', accountName: 'Salaries Expense', debit: 125000, credit: 0, costCenter: 'HR' },
+            { id: '2', accountId: '10110', accountName: 'Cash in Bank', debit: 0, credit: 125000 }
+        ]
+    }
+];
 
 const FISCAL_PERIODS = [
     { id: '2024-12', label: 'Period 12 2024 (Dec)', value: '2024-12-01' },
@@ -82,15 +103,20 @@ export const GLInquiry: React.FC<{ initialAccountFilter?: string }> = ({ initial
     }, [initialAccountFilter]);
 
     useEffect(() => {
-        loadData();
+        const user = authService.getSession();
+        if (user) {
+            const stored = localStorage.getItem('nexus_journals');
+            if (stored) {
+                setGlData(JSON.parse(stored));
+            } else if (user.companyId === '1') {
+                setGlData(DEMO_GL_DATA);
+            } else {
+                setGlData([]);
+            }
+        }
     }, []);
 
-    const loadData = async () => {
-        const data = await journalService.getAll();
-        setGlData(data);
-    };
-
-    // Data Processing
+    // Data Processing (Memoized transactions flatten logic - same as before)
     const transactions: GLTransaction[] = useMemo(() => {
         const flat: GLTransaction[] = [];
         glData.forEach(entry => {
