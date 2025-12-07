@@ -39,10 +39,10 @@ export const DataManagement: React.FC = () => {
 
     // --- Actions ---
 
-    const handleExport = (moduleId: string) => {
+    const handleExport = async (moduleId: string) => {
         try {
             if (moduleId === 'users') {
-                const users = authService.getAllUsers();
+                const users = await authService.getAllUsers();
                 dataService.downloadCSV(users, 'Nexus_Users');
                 addToast('User directory exported successfully', 'success');
             } else if (moduleId === 'journals') {
@@ -83,12 +83,12 @@ export const DataManagement: React.FC = () => {
         }
     };
 
-    const executeImport = () => {
+    const executeImport = async () => {
         if (!scanResult.data.length) return;
 
         if (importType === 'users') {
             // Mock import for users - usually would need more validation
-            const currentUsers = authService.getAllUsers();
+            const currentUsers = await authService.getAllUsers();
             // Just simulation of adding logic
             addToast(`${scanResult.rows} users imported (Simulation)`, 'success');
         } else {

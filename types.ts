@@ -51,6 +51,7 @@ export interface Company {
     };
     maxUsers: number;
     createdAt: string;
+    userCount?: number;
 }
 
 export interface User {
