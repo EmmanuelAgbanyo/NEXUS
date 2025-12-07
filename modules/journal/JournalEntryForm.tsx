@@ -7,7 +7,7 @@ import { JournalType, JournalLine, AccountType, JournalEntry, JournalStatus, COA
 import { Plus, Trash2, Save, Send, AlertCircle, Calculator, Search, CheckCircle, Clock, CalendarDays, Globe, Undo, Redo, Sparkles, Loader2, FileText, Hash, Coins, ChevronDown, RefreshCw } from 'lucide-react';
 import { suggestJournalLines } from '../../services/geminiService';
 import { motion, AnimatePresence } from 'framer-motion';
-import { loadFromCloud } from '../../utils/cloudStorage';
+import { loadFromCloud } from '../../src/utils/cloudStorage.js';
 
 // Constants
 const MIN_DESC_LENGTH = 10; 

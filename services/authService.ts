@@ -1,6 +1,6 @@
 // services/authService.ts
 import { User, Role, Company, OnboardingToken } from '../types';
-import { saveToCloud, loadFromCloud } from '../utils/cloudStorage'; // cloud keys: 'users','companies','tokens'
+import { saveToCloud, loadFromCloud } from '../src/utils/cloudStorage.js'; // cloud keys: 'users','companies','tokens'
 
 // Local session key remains in localStorage
 const SESSION_KEY = 'nexus_session';

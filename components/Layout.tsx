@@ -6,7 +6,7 @@ import { Role } from '../types';
 import { Badge, Button } from './ui/UtilityComponents';
 import { ModernInput } from './ui/ModernInput';
 import { authService } from '../services/authService';
-import { saveToCloud } from '../utils/cloudStorage';
+import { saveToCloud } from '../src/utils/cloudStorage.js';
 import { ChatWidget } from './ChatWidget';
 
 interface LayoutProps {

@@ -2,7 +2,7 @@
 import { SupportTicket, TicketStatus, User } from '../types';
 import { getChatResponse } from './geminiService';
 import { authService } from './authService';
-import { saveToCloud, loadFromCloud } from '../utils/cloudStorage';
+import { saveToCloud, loadFromCloud } from '../src/utils/cloudStorage.js';
 
 const TICKETS_KEY = 'nexus_support_tickets';
 

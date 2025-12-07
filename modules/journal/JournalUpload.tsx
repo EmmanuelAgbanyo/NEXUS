@@ -5,7 +5,7 @@ import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, FileText, X } from '
 import { dataService } from '../../services/dataService';
 import { useToast } from '../../components/ui/Toast';
 import { JournalEntry, JournalStatus, JournalType } from '../../types';
-import { saveToCloud, loadFromCloud } from '../../utils/cloudStorage';
+import { saveToCloud, loadFromCloud } from '../../src/utils/cloudStorage.js';
 
 export const JournalUpload: React.FC = () => {
     const [dragActive, setDragActive] = useState(false);

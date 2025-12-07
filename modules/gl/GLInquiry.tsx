@@ -10,7 +10,7 @@ import { GLAnalytics } from './GLAnalytics';
 import { authService } from '../../services/authService';
 import { dataService } from '../../services/dataService';
 import { useToast } from '../../components/ui/Toast';
-import { loadFromCloud } from '../../utils/cloudStorage';
+import { loadFromCloud } from '../../src/utils/cloudStorage.js';
 
 // ... (Constants, FilterSection, Props interfaces kept same) ...
 const DEMO_GL_DATA: JournalEntry[] = [

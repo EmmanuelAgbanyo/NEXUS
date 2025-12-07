@@ -7,7 +7,7 @@ import { Plus, Search, Sparkles, FolderTree, ArrowRight, Edit, Trash2, X, Save, 
 import { COAAccount, AccountType } from '../../types';
 import { suggestCOACode, generateCOAFromDocument } from '../../services/geminiService';
 import { motion, AnimatePresence } from 'framer-motion';
-import { saveToCloud, loadFromCloud } from '../../utils/cloudStorage';
+import { saveToCloud, loadFromCloud } from '../../src/utils/cloudStorage.js';
 
 const COA_STORAGE_KEY = 'nexus_coa';
 

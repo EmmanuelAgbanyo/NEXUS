@@ -8,7 +8,7 @@ import { PlusCircle, Search, UploadCloud, TrendingUp, AlertCircle, FileCheck, Ba
 import { JournalEntry, JournalStatus, JournalType } from '../../types';
 import { Card } from '../../components/ui/UtilityComponents';
 import { authService } from '../../services/authService';
-import { saveToCloud, loadFromCloud } from '../../utils/cloudStorage';
+import { saveToCloud, loadFromCloud } from '../../src/utils/cloudStorage.js';
 
 const JOURNALS_KEY = 'nexus_journals';
 

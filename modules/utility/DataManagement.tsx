@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { dataService } from '../../services/dataService';
 import { authService } from '../../services/authService';
 import { useToast } from '../../components/ui/Toast';
-import { loadFromCloud } from '../../utils/cloudStorage';
+import { loadFromCloud } from '../../src/utils/cloudStorage.js';
 
 type Tab = 'export' | 'import' | 'backup';
 
