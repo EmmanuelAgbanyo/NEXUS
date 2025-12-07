@@ -1,0 +1,63 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nexus Quantum Ledger</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f8fafc;
+      }
+      /* Custom scrollbar for data tables */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
+      }
+
+      /* Login Component Variables - Updated for Light/Enterprise Theme */
+      :root {
+        --color-bg: #f8fafc;        /* Slate-50 */
+        --color-surface: #ffffff;   /* White */
+        --color-muted-surface: #f1f5f9; /* Slate-100 */
+        --color-border: #e2e8f0;    /* Slate-200 */
+        --color-text-secondary: #64748b; /* Slate-500 */
+        --color-text-primary: #0f172a;   /* Slate-900 */
+        --color-heading: #1e293b;        /* Slate-800 */
+        --color-bg-2: #e0e7ff;           /* Indigo-100 (for icon backgrounds) */
+        --color-text-primary-rgb: 15, 23, 42; /* For gradients */
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "framer-motion": "https://aistudiocdn.com/framer-motion@^11.0.8",
+    "clsx": "https://aistudiocdn.com/clsx@^2.1.1",
+    "tailwind-merge": "https://aistudiocdn.com/tailwind-merge@^2.3.0",
+    "usehooks-ts": "https://aistudiocdn.com/usehooks-ts@^3.1.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
