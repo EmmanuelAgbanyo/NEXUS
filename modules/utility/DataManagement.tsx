@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { dataService } from '../../services/dataService';
 import { authService } from '../../services/authService';
 import { useToast } from '../../components/ui/Toast';
+import { loadFromCloud } from '../../utils/cloudStorage';
 
 type Tab = 'export' | 'import' | 'backup';
 
@@ -46,15 +47,13 @@ export const DataManagement: React.FC = () => {
                 dataService.downloadCSV(users, 'Nexus_Users');
                 addToast('User directory exported successfully', 'success');
             } else if (moduleId === 'journals') {
-                const journalsStr = localStorage.getItem('nexus_journals') || '[]';
-                const journals = JSON.parse(journalsStr);
-                const flatData = dataService.prepareJournalExport(journals);
+                const journals = await loadFromCloud('nexus_journals') || [];
+                const flatData = dataService.prepareJournalExport(journals as any);
                 dataService.downloadCSV(flatData, 'Nexus_Journals');
                 addToast('Journals exported successfully', 'success');
             } else if (moduleId === 'gl') {
-                const journalsStr = localStorage.getItem('nexus_journals') || '[]';
-                const journals = JSON.parse(journalsStr);
-                dataService.downloadJSON(journals, 'Nexus_GL_Dump');
+                const journals = await loadFromCloud('nexus_journals') || [];
+                dataService.downloadJSON(journals as any, 'Nexus_GL_Dump');
                 addToast('GL Data exported successfully', 'success');
             }
         } catch (e) {

@@ -62,7 +62,7 @@ export const JournalUpload: React.FC = () => {
         }
     };
 
-    const executeImport = () => {
+    const executeImport = async () => {
         try {
             // Convert flat CSV rows to Journal Objects
             // Assuming simplified structure for demo: One row per journal line, grouped by 'Journal Reference'
@@ -107,9 +107,9 @@ export const JournalUpload: React.FC = () => {
             });
 
             // Persist
-            const existing = localStorage.getItem('nexus_journals');
-            const currentJournals = existing ? JSON.parse(existing) : [];
-            localStorage.setItem('nexus_journals', JSON.stringify([...entries, ...currentJournals]));
+            const existing = await loadFromCloud('nexus_journals');
+            const currentJournals = existing ? (existing as JournalEntry[]) : [];
+            await saveToCloud('nexus_journals', [...entries, ...currentJournals]);
 
             addToast(`${entries.length} Journals imported successfully`, 'success');
             setFile(null);
