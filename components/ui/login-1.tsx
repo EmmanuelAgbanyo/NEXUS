@@ -108,16 +108,23 @@ export const LoginComponent: React.FC<LoginComponentProps> = ({ onLogin, onSwitc
           return;
       }
 
-      const result = await authService.login(email, password);
+      try {
+          const result = await authService.login(email, password);
 
-      if (result.success) {
-          addToast(`Welcome back, ${result.user?.fullName}`, 'success');
-          onLogin();
-      } else {
-          setError(result.error || 'Login failed');
-          addToast(result.error || 'Login failed', 'error');
+          if (result.success) {
+              addToast(`Welcome back, ${result.user?.fullName}`, 'success');
+              onLogin();
+          } else {
+              setError(result.error || 'Login failed');
+              addToast(result.error || 'Login failed', 'error');
+          }
+      } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred';
+          setError(errorMsg);
+          addToast(errorMsg, 'error');
+      } finally {
+          setIsLoading(false);
       }
-      setIsLoading(false);
   };
 
    const socialIcons = [

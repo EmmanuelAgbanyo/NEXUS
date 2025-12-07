@@ -14,7 +14,7 @@ export async function saveToCloud(key, data) {
 }
 
 export async function loadFromCloud(key) {
-  const response = await fetch(`/api/storage/load?key=${key}`);
+  const response = await fetch(`/api/storage/get?key=${key}`);
   const result = await response.json();
   return result;
 }
