@@ -63,6 +63,8 @@ export interface User {
   status: 'Active' | 'Inactive' | 'Pending' | 'Suspended';
   lastLogin?: string;
   requiresPasswordChange?: boolean;
+  passwordHash?: string;
+  createdAt?: string;
 }
 
 export interface OnboardingToken {
@@ -204,4 +206,18 @@ export interface TrialBalanceLine {
     variancePercent: number;
     level: number; // 0 for header, 1 for item
     hasChildren: boolean;
+}
+
+export type TicketStatus = 'Open' | 'Resolved' | 'Bot_Handled';
+
+export interface SupportTicket {
+    id: string;
+    userId: string;
+    userName: string;
+    companyId: string;
+    query: string;
+    response?: string;
+    status: TicketStatus;
+    timestamp: string;
+    isAiResponse: boolean;
 }

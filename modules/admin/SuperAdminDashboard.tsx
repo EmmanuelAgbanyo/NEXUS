@@ -4,9 +4,10 @@ import { Card, SectionHeader, Button, Badge, Switch } from '../../components/ui/
 import { ModernInput } from '../../components/ui/ModernInput';
 import { Company, OnboardingToken, User, Role } from '../../types';
 import { authService } from '../../services/authService';
-import { Building, Plus, CheckCircle, Copy, Loader2, RefreshCw, X, Users, Activity, Power, ShieldAlert, Edit, Search, MoreHorizontal, ArrowRight, Eye, Key, LayoutGrid, Server, Globe, Lock, Unlock, RotateCcw, Clock, ScrollText } from 'lucide-react';
+import { Building, Plus, CheckCircle, Copy, Loader2, RefreshCw, X, Users, Activity, Power, ShieldAlert, Edit, Search, MoreHorizontal, ArrowRight, Eye, Key, LayoutGrid, Server, Globe, Lock, Unlock, RotateCcw, Clock, ScrollText, MessageSquare, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../components/ui/Toast';
+import { SupportManager } from './SupportManager';
 
 const HealthGauge = ({ score }: { score: number }) => {
     const circumference = 2 * Math.PI * 40;
@@ -60,6 +61,9 @@ export const SuperAdminDashboard: React.FC = () => {
 
     // Provision Success State
     const [successData, setSuccessData] = useState<OnboardingToken | null>(null);
+
+    // View Toggle
+    const [view, setView] = useState<'tenants' | 'support'>('tenants');
 
     useEffect(() => {
         loadCompanies();
@@ -156,6 +160,17 @@ export const SuperAdminDashboard: React.FC = () => {
         }
     };
 
+    const handleFactoryReset = async () => {
+        const confirmText = prompt("TYPE 'RESET' TO CONFIRM SYSTEM WIPE. This will delete all companies, users, and transactions. Only your Super Admin access will remain.");
+        if (confirmText === 'RESET') {
+            setIsLoading(true);
+            await authService.factoryReset();
+            addToast('System Factory Reset Complete', 'success');
+            setIsLoading(false);
+            window.location.reload();
+        }
+    };
+
     const filteredCompanies = companies.filter(c => 
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         c.domain.toLowerCase().includes(searchTerm.toLowerCase())
@@ -163,147 +178,192 @@ export const SuperAdminDashboard: React.FC = () => {
 
     // Stats
     const totalTenants = companies.length;
-    const activeTenants = companies.filter(c => c.status === 'Active').length;
     const totalUsers = companies.reduce((acc, curr) => acc + (authService.getCompanyUsers(curr.id).length || 0), 0);
 
     return (
         <div className="space-y-8 relative h-full">
-            {/* Top Stats Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="p-4 bg-slate-900 text-white border-slate-800">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-xs text-slate-400 font-bold uppercase">Total Organizations</p>
-                            <h3 className="text-2xl font-bold mt-1">{totalTenants}</h3>
-                        </div>
-                        <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400"><Building size={20}/></div>
-                    </div>
-                </Card>
-                <Card className="p-4 bg-white border-slate-200">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-xs text-slate-500 font-bold uppercase">System Health</p>
-                            <div className="flex items-center gap-2 mt-1">
-                                <h3 className="text-2xl font-bold text-emerald-600">99.9%</h3>
-                                <span className="relative flex h-2.5 w-2.5">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                                </span>
-                            </div>
-                        </div>
-                        <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600"><Activity size={20}/></div>
-                    </div>
-                </Card>
-                <Card className="p-4 bg-white border-slate-200">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-xs text-slate-500 font-bold uppercase">Total Seats</p>
-                            <h3 className="text-2xl font-bold mt-1 text-slate-800">{totalUsers}</h3>
-                        </div>
-                        <div className="p-2 bg-slate-100 rounded-lg text-slate-500"><Users size={20}/></div>
-                    </div>
-                </Card>
-                <Card className="p-4 bg-white border-slate-200">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-xs text-slate-500 font-bold uppercase">Pending Setups</p>
-                            <h3 className="text-2xl font-bold mt-1 text-amber-600">{companies.filter(c => c.status === 'Provisioning').length}</h3>
-                        </div>
-                        <div className="p-2 bg-amber-50 rounded-lg text-amber-600"><Loader2 size={20}/></div>
-                    </div>
-                </Card>
-            </div>
-
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="relative w-full md:w-96">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                        type="text" 
-                        placeholder="Search tenants by name or domain..." 
-                        className="pl-10 pr-4 py-2.5 w-full bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none shadow-sm"
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                    />
+            {/* Top Navigation Bar */}
+            <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => setView('tenants')}
+                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-2 ${view === 'tenants' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                        <Building size={16}/> Tenant Manager
+                    </button>
+                    <button 
+                        onClick={() => setView('support')}
+                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-2 ${view === 'support' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                        <MessageSquare size={16}/> Support Console
+                    </button>
                 </div>
-                <Button onClick={() => setShowProvisionModal(true)} className="bg-indigo-900 hover:bg-indigo-800 shadow-lg shadow-indigo-900/20">
-                    <Plus size={16} className="mr-2"/> Provision New Tenant
-                </Button>
             </div>
 
-            {/* Tenant Data Grid */}
-            <Card className="overflow-hidden border-slate-200 shadow-md">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase font-bold text-slate-500">
-                        <tr>
-                            <th className="px-6 py-4">Organization</th>
-                            <th className="px-6 py-4">Status</th>
-                            <th className="px-6 py-4">Health</th>
-                            <th className="px-6 py-4">Users</th>
-                            <th className="px-6 py-4">Modules Enabled</th>
-                            <th className="px-6 py-4 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                        {filteredCompanies.map(company => {
-                            const userCount = authService.getCompanyUsers(company.id).length;
-                            const activeModules = Object.values(company.features).filter(Boolean).length;
-                            const healthScore = company.status === 'Active' ? 95 : 20; // Simulated score
-                            
-                            return (
-                                <tr key={company.id} className="group hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={() => setSelectedCompany(company)}>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg flex items-center justify-center font-bold text-slate-600 border border-slate-200 shadow-sm">
-                                                {company.name.charAt(0)}
-                                            </div>
-                                            <div>
-                                                <div className="font-bold text-slate-800">{company.name}</div>
-                                                <div className="text-xs text-slate-500 flex items-center gap-1">
-                                                    <Globe size={10} /> {company.domain}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <Badge type={company.status === 'Active' ? 'success' : company.status === 'Suspended' ? 'error' : 'warning'}>{company.status}</Badge>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-1">
-                                            <div className={`w-2 h-2 rounded-full ${healthScore > 80 ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
-                                            <span className="text-xs font-medium text-slate-600">{healthScore}%</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                <div className="h-full bg-indigo-500" style={{ width: `${(userCount / company.maxUsers) * 100}%` }}></div>
-                                            </div>
-                                            <span className="text-xs font-medium text-slate-600">{userCount}/{company.maxUsers}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                                            {activeModules} Active
+            {view === 'support' ? (
+                <SupportManager />
+            ) : (
+                <>
+                    {/* Top Stats Bar */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <Card className="p-4 bg-slate-900 text-white border-slate-800">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-xs text-slate-400 font-bold uppercase">Total Organizations</p>
+                                    <h3 className="text-2xl font-bold mt-1">{totalTenants}</h3>
+                                </div>
+                                <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400"><Building size={20}/></div>
+                            </div>
+                        </Card>
+                        <Card className="p-4 bg-white border-slate-200">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-xs text-slate-500 font-bold uppercase">System Health</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <h3 className="text-2xl font-bold text-emerald-600">99.9%</h3>
+                                        <span className="relative flex h-2.5 w-2.5">
+                                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                                         </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                                            <ArrowRight size={16} />
-                                        </button>
-                                    </td>
+                                    </div>
+                                </div>
+                                <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600"><Activity size={20}/></div>
+                            </div>
+                        </Card>
+                        <Card className="p-4 bg-white border-slate-200">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-xs text-slate-500 font-bold uppercase">Total Seats</p>
+                                    <h3 className="text-2xl font-bold mt-1 text-slate-800">{totalUsers}</h3>
+                                </div>
+                                <div className="p-2 bg-slate-100 rounded-lg text-slate-500"><Users size={20}/></div>
+                            </div>
+                        </Card>
+                        <Card className="p-4 bg-white border-slate-200">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-xs text-slate-500 font-bold uppercase">Pending Setups</p>
+                                    <h3 className="text-2xl font-bold mt-1 text-amber-600">{companies.filter(c => c.status === 'Provisioning').length}</h3>
+                                </div>
+                                <div className="p-2 bg-amber-50 rounded-lg text-amber-600"><Loader2 size={20}/></div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="relative w-full md:w-96">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input 
+                                type="text" 
+                                placeholder="Search tenants by name or domain..." 
+                                className="pl-10 pr-4 py-2.5 w-full bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none shadow-sm"
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <Button onClick={() => setShowProvisionModal(true)} className="bg-indigo-900 hover:bg-indigo-800 shadow-lg shadow-indigo-900/20">
+                            <Plus size={16} className="mr-2"/> Provision New Tenant
+                        </Button>
+                    </div>
+
+                    {/* Tenant Data Grid */}
+                    <Card className="overflow-hidden border-slate-200 shadow-md">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase font-bold text-slate-500">
+                                <tr>
+                                    <th className="px-6 py-4">Organization</th>
+                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4">Health</th>
+                                    <th className="px-6 py-4">Users</th>
+                                    <th className="px-6 py-4">Modules Enabled</th>
+                                    <th className="px-6 py-4 text-right">Actions</th>
                                 </tr>
-                            );
-                        })}
-                        {filteredCompanies.length === 0 && (
-                            <tr>
-                                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                                    No organizations found matching your search.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </Card>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                                {filteredCompanies.map(company => {
+                                    const userCount = authService.getCompanyUsers(company.id).length;
+                                    const activeModules = Object.values(company.features).filter(Boolean).length;
+                                    const healthScore = company.status === 'Active' ? 95 : 20; // Simulated score
+                                    
+                                    return (
+                                        <tr key={company.id} className="group hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={() => setSelectedCompany(company)}>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg flex items-center justify-center font-bold text-slate-600 border border-slate-200 shadow-sm">
+                                                        {company.name.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-slate-800">{company.name}</div>
+                                                        <div className="text-xs text-slate-500 flex items-center gap-1">
+                                                            <Globe size={10} /> {company.domain}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <Badge type={company.status === 'Active' ? 'success' : company.status === 'Suspended' ? 'error' : 'warning'}>{company.status}</Badge>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1">
+                                                    <div className={`w-2 h-2 rounded-full ${healthScore > 80 ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+                                                    <span className="text-xs font-medium text-slate-600">{healthScore}%</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-indigo-500" style={{ width: `${(userCount / company.maxUsers) * 100}%` }}></div>
+                                                    </div>
+                                                    <span className="text-xs font-medium text-slate-600">{userCount}/{company.maxUsers}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                                                    {activeModules} Active
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                                                    <ArrowRight size={16} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {filteredCompanies.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                                            No organizations found matching your search.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </Card>
+
+                    {/* Danger Zone - Factory Reset */}
+                    <div className="mt-12 border-t border-slate-200 pt-8">
+                        <div className="bg-red-50 border border-red-100 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-6">
+                            <div>
+                                <h4 className="text-red-900 font-bold flex items-center gap-2">
+                                    <AlertTriangle size={20} /> Danger Zone
+                                </h4>
+                                <p className="text-red-700 text-sm mt-1 max-w-xl">
+                                    Perform a factory reset to clear all tenant data, transactions, and configurations. 
+                                    This action is irreversible. Only the Super Admin account will be preserved.
+                                </p>
+                            </div>
+                            <Button 
+                                variant="danger" 
+                                onClick={handleFactoryReset}
+                                className="whitespace-nowrap shadow-red-200 bg-red-600 hover:bg-red-700"
+                            >
+                                Factory Reset System
+                            </Button>
+                        </div>
+                    </div>
+                </>
+            )}
 
             {/* --- MANAGE TENANT SIDEBAR --- */}
             <AnimatePresence>

@@ -1,5 +1,7 @@
 {
   "name": "Nexus Quantum Ledger",
   "description": "An industry-standard, AI-enhanced ERP accounting application featuring a robust Utility Module for system configuration, chart of accounts management, and policy enforcement.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

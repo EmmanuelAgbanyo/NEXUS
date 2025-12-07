@@ -1,8 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Settings, FileText, Users, PieChart, Layers, Database, LogOut, BookOpen, ChevronLeft, ChevronRight, Bell, Search, Menu, Command, Building } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { LayoutDashboard, Settings, FileText, Users, PieChart, Layers, Database, LogOut, BookOpen, ChevronLeft, ChevronRight, Bell, Search, Menu, Command, Building, User, Edit, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Role } from '../types';
+import { Badge, Button } from './ui/UtilityComponents';
+import { ModernInput } from './ui/ModernInput';
+import { authService } from '../services/authService';
+import { ChatWidget } from './ChatWidget';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,6 +14,24 @@ interface LayoutProps {
   setActiveModule: (module: string) => void;
   onLogout: () => void;
   userRole: Role | null;
+}
+
+// Custom hook to avoid external dependency issues
+function useOnClickOutside(ref: React.RefObject<HTMLElement>, handler: (event: MouseEvent | TouchEvent) => void) {
+  useEffect(() => {
+    const listener = (event: MouseEvent | TouchEvent) => {
+      if (!ref.current || ref.current.contains(event.target as Node)) {
+        return;
+      }
+      handler(event);
+    };
+    document.addEventListener("mousedown", listener);
+    document.addEventListener("touchstart", listener);
+    return () => {
+      document.removeEventListener("mousedown", listener);
+      document.removeEventListener("touchstart", listener);
+    };
+  }, [ref, handler]);
 }
 
 const SidebarItem = ({ icon: Icon, label, id, active, onClick, collapsed }: any) => (
@@ -80,6 +102,183 @@ const SidebarItem = ({ icon: Icon, label, id, active, onClick, collapsed }: any)
     </AnimatePresence>
   </motion.div>
 );
+
+const NotificationsMenu = () => {
+    const [isOpen, setIsOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    useOnClickOutside(ref, () => setIsOpen(false));
+
+    return (
+        <div className="relative" ref={ref}>
+            <motion.button 
+                whileHover={{ scale: 1.1, rotate: 15 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setIsOpen(!isOpen)}
+                className={`relative p-2 rounded-full transition-all ${isOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm'}`}
+            >
+               <Bell size={20} />
+               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-[#f8fafc]"></span>
+            </motion.button>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 origin-top-right"
+                    >
+                        <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                            <h4 className="font-bold text-slate-800 text-sm">Notifications</h4>
+                            <button className="text-[10px] font-bold text-indigo-600 hover:underline">Mark all read</button>
+                        </div>
+                        <div className="max-h-80 overflow-y-auto">
+                            <div className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer group">
+                                <div className="flex gap-3">
+                                    <div className="mt-1 w-2 h-2 rounded-full bg-red-500 shrink-0"></div>
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-800 group-hover:text-indigo-600 transition-colors">Security Alert</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">Unusual login attempt detected from new IP address.</p>
+                                        <p className="text-[10px] text-slate-400 mt-2 font-mono">10 mins ago</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer group">
+                                <div className="flex gap-3">
+                                    <div className="mt-1 w-2 h-2 rounded-full bg-emerald-500 shrink-0"></div>
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-800 group-hover:text-indigo-600 transition-colors">Backup Complete</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">Daily system snapshot saved successfully.</p>
+                                        <p className="text-[10px] text-slate-400 mt-2 font-mono">2 hours ago</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-3 text-center bg-slate-50 border-t border-slate-100">
+                            <button className="text-xs font-bold text-slate-500 hover:text-slate-800">View All Activity</button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+const UserProfileMenu = ({ onLogout }: { onLogout: () => void }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [showEditProfile, setShowEditProfile] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    useOnClickOutside(ref, () => setIsOpen(false));
+    
+    const user = authService.getSession();
+
+    return (
+        <>
+            <div className="relative" ref={ref}>
+                <div 
+                    className="flex items-center gap-3 pl-2 cursor-pointer group"
+                    onClick={() => setIsOpen(!isOpen)}
+                >
+                   <div className="text-right hidden md:block">
+                      <p className="text-sm font-bold text-slate-800 leading-none group-hover:text-indigo-700 transition-colors">{user?.fullName || 'User'}</p>
+                      <p className="text-[11px] text-slate-500 font-medium mt-1">{user?.department || 'Staff'}</p>
+                   </div>
+                   <motion.div 
+                     whileHover={{ scale: 1.05 }}
+                     className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 p-[2px] shadow-md"
+                   >
+                     <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                        <span className="text-sm font-bold text-indigo-600">{user?.fullName?.charAt(0) || 'U'}</span>
+                     </div>
+                   </motion.div>
+                </div>
+
+                <AnimatePresence>
+                    {isOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            className="absolute right-0 mt-3 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 origin-top-right p-2"
+                        >
+                            <div className="p-3 border-b border-slate-50 mb-2">
+                                <p className="text-xs font-bold text-slate-400 uppercase">Signed in as</p>
+                                <p className="text-sm font-bold text-slate-800 truncate">{user?.email}</p>
+                            </div>
+                            
+                            <button onClick={() => { setShowEditProfile(true); setIsOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-colors flex items-center gap-2 font-medium">
+                                <Edit size={16} /> Edit Profile
+                            </button>
+                            <button className="w-full text-left px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-colors flex items-center gap-2 font-medium">
+                                <Settings size={16} /> Preferences
+                            </button>
+                            
+                            <div className="h-px bg-slate-100 my-2"></div>
+                            
+                            <button onClick={onLogout} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-xl transition-colors flex items-center gap-2 font-bold">
+                                <LogOut size={16} /> Sign Out
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* Edit Profile Modal */}
+            <AnimatePresence>
+                {showEditProfile && (
+                    <EditProfileModal user={user} onClose={() => setShowEditProfile(false)} />
+                )}
+            </AnimatePresence>
+        </>
+    );
+};
+
+const EditProfileModal = ({ user, onClose }: { user: any, onClose: () => void }) => {
+    const [name, setName] = useState(user?.fullName || '');
+    const [dept, setDept] = useState(user?.department || '');
+    const [email, setEmail] = useState(user?.email || ''); // Read only usually, but editable for demo logic if needed
+
+    const handleSave = () => {
+        // Mock update
+        const updated = { ...user, fullName: name, department: dept };
+        // In a real app, call authService.updateProfile(updated)
+        // For now, simple session update simulation
+        localStorage.setItem('nexus_session', JSON.stringify(updated));
+        window.location.reload(); // Quick way to refresh session state in context
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            >
+                <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                    <h3 className="font-bold text-lg text-slate-800">Edit Profile</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><ChevronLeft size={20}/></button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div className="flex justify-center mb-6">
+                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 p-[3px] shadow-lg">
+                            <div className="w-full h-full bg-white rounded-full flex items-center justify-center">
+                                <span className="text-2xl font-bold text-indigo-600">{name.charAt(0)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <ModernInput label="Full Name" value={name} onChange={e => setName(e.target.value)} icon={<User size={18}/>} />
+                    <ModernInput label="Department" value={dept} onChange={e => setDept(e.target.value)} icon={<Building size={18}/>} />
+                    <ModernInput label="Email" value={email} disabled className="opacity-70" />
+                </div>
+                <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                    <Button onClick={handleSave}>Save Changes</Button>
+                </div>
+            </motion.div>
+        </div>
+    );
+};
 
 export const Layout: React.FC<LayoutProps> = ({ children, activeModule, setActiveModule, onLogout, userRole }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -233,31 +432,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeModule, setActiv
                 </div>
             </div>
             
-            <motion.button 
-              whileHover={{ scale: 1.1, rotate: 15 }}
-              whileTap={{ scale: 0.9 }}
-              className="relative p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-full transition-all hover:shadow-sm"
-            >
-               <Bell size={20} />
-               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-[#f8fafc]"></span>
-            </motion.button>
+            <NotificationsMenu />
             
             <div className="h-8 w-px bg-slate-200"></div>
             
-            <div className="flex items-center gap-3 pl-2">
-               <div className="text-right hidden md:block">
-                  <p className="text-sm font-bold text-slate-800 leading-none">{userRole === Role.SUPER_ADMIN ? 'System Owner' : 'Admin User'}</p>
-                  <p className="text-[11px] text-slate-500 font-medium mt-1">{userRole === Role.SUPER_ADMIN ? 'Nexus Corp' : 'Finance Dept.'}</p>
-               </div>
-               <motion.div 
-                 whileHover={{ scale: 1.05 }}
-                 className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 p-[2px] shadow-md cursor-pointer"
-               >
-                 <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-                    <span className="text-sm font-bold text-indigo-600">{userRole === Role.SUPER_ADMIN ? 'OP' : 'AU'}</span>
-                 </div>
-               </motion.div>
-            </div>
+            <UserProfileMenu onLogout={onLogout} />
           </div>
         </header>
 
@@ -273,6 +452,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeModule, setActiv
             {children}
           </motion.div>
         </main>
+
+        {/* Global Chat Widget */}
+        <ChatWidget />
       </div>
     </div>
   );

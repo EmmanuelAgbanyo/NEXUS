@@ -1,30 +1,13 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, SectionHeader, Button, Badge } from '../../components/ui/UtilityComponents';
 import { ProfessionalDropdown } from '../../components/ui/ProfessionalDropdown';
 import { ModernInput } from '../../components/ui/ModernInput';
 import { Plus, Search, Sparkles, FolderTree, ArrowRight, Edit, Trash2, X, Save, AlertCircle, CheckCircle, Upload, FileText, Scan, Layers, ChevronDown, ChevronRight, PieChart, Hash, Folder, CreditCard, CornerDownRight, Check, Image as ImageIcon, FileCheck, Info, ShieldAlert } from 'lucide-react';
 import { COAAccount, AccountType } from '../../types';
 import { suggestCOACode, generateCOAFromDocument } from '../../services/geminiService';
+import { accountService } from '../../services/accountService';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const INITIAL_COA: COAAccount[] = [
-  { code: '10000', name: 'Non-Current Assets', type: AccountType.ASSET, balance: 0, isSystem: true },
-  { code: '11000', name: 'Property, Plant & Equip.', type: AccountType.ASSET, parentCode: '10000', balance: 1250000 },
-  { code: '12000', name: 'Intangible Assets', type: AccountType.ASSET, parentCode: '10000', balance: 50000 },
-  { code: '20000', name: 'Current Assets', type: AccountType.ASSET, balance: 0, isSystem: true },
-  { code: '20100', name: 'Cash & Equivalents', type: AccountType.ASSET, parentCode: '20000', balance: 0, isSystem: true },
-  { code: '20110', name: 'Operating Account (USD)', type: AccountType.ASSET, parentCode: '20100', balance: 150000 },
-  { code: '20120', name: 'Petty Cash', type: AccountType.ASSET, parentCode: '20100', balance: 2500 },
-  { code: '30000', name: 'Liabilities', type: AccountType.LIABILITY, balance: 0, isSystem: true },
-  { code: '30100', name: 'Accounts Payable', type: AccountType.LIABILITY, parentCode: '30000', balance: 45000 },
-  { code: '40000', name: 'Equity', type: AccountType.EQUITY, balance: 0, isSystem: true },
-  { code: '40100', name: 'Retained Earnings', type: AccountType.EQUITY, parentCode: '40000', balance: 850000 },
-  { code: '50000', name: 'Revenue', type: AccountType.REVENUE, balance: 0, isSystem: true },
-  { code: '50100', name: 'Sales Revenue', type: AccountType.REVENUE, parentCode: '50000', balance: 500000 },
-  { code: '60000', name: 'Expenses', type: AccountType.EXPENSE, balance: 0, isSystem: true },
-  { code: '60100', name: 'Rent Expense', type: AccountType.EXPENSE, parentCode: '60000', balance: 12000 },
-];
 
 const IFRS_TEMPLATE: COAAccount[] = [
     { code: '10000', name: 'Non-current Assets', type: AccountType.ASSET, isSystem: true, balance: 0 },
@@ -38,7 +21,7 @@ const IFRS_TEMPLATE: COAAccount[] = [
 ];
 
 export const ChartOfAccounts: React.FC = () => {
-  const [accounts, setAccounts] = useState<COAAccount[]>(INITIAL_COA);
+  const [accounts, setAccounts] = useState<COAAccount[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [aiInput, setAiInput] = useState('');
   const [isSuggesting, setIsSuggesting] = useState(false);
@@ -53,7 +36,17 @@ export const ChartOfAccounts: React.FC = () => {
   const [editingAccount, setEditingAccount] = useState<COAAccount | null>(null);
   const [formData, setFormData] = useState<Partial<COAAccount>>({});
   const [formError, setFormError] = useState('');
-  const [isGroupAccount, setIsGroupAccount] = useState(false); // UI toggle for Group vs Ledger
+  const [isGroupAccount, setIsGroupAccount] = useState(false);
+
+  // Load from Service
+  useEffect(() => {
+      loadData();
+  }, []);
+
+  const loadData = async () => {
+      const data = await accountService.getAll();
+      setAccounts(data);
+  };
 
   const stats = useMemo(() => {
       return {
@@ -66,7 +59,6 @@ export const ChartOfAccounts: React.FC = () => {
 
   // Build Hierarchy Tree for Display
   const hierarchicalAccounts = useMemo(() => {
-      // If searching, flatten the list to show matches
       if (searchTerm) {
           return accounts.filter(acc => 
             acc.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -74,7 +66,6 @@ export const ChartOfAccounts: React.FC = () => {
           ).map(acc => ({ ...acc, depth: 0 }));
       }
 
-      // Otherwise, build tree
       const result: (COAAccount & { depth: number })[] = [];
       
       const processLevel = (parentCode: string | undefined, depth: number) => {
@@ -105,7 +96,7 @@ export const ChartOfAccounts: React.FC = () => {
     setIsSuggesting(false);
   };
 
-  const acceptSuggestion = () => {
+  const acceptSuggestion = async () => {
     if (!suggestion) return;
     const newAccount: COAAccount = {
       code: suggestion.code,
@@ -113,7 +104,8 @@ export const ChartOfAccounts: React.FC = () => {
       type: suggestion.type as AccountType,
       balance: 0
     };
-    setAccounts([...accounts, newAccount].sort((a, b) => a.code.localeCompare(b.code)));
+    await accountService.save(newAccount);
+    await loadData();
     setAiInput('');
     setSuggestion(null);
   };
@@ -141,7 +133,7 @@ export const ChartOfAccounts: React.FC = () => {
       reader.readAsDataURL(scanFile);
   };
 
-  const importExtractedAccount = (acc: any) => {
+  const importExtractedAccount = async (acc: any) => {
       const newAccount: COAAccount = {
           code: acc.suggestedCode,
           name: acc.name,
@@ -149,7 +141,8 @@ export const ChartOfAccounts: React.FC = () => {
           balance: 0
       };
       if (!accounts.some(a => a.code === newAccount.code)) {
-          setAccounts(prev => [...prev, newAccount].sort((a, b) => a.code.localeCompare(b.code)));
+          await accountService.save(newAccount);
+          await loadData();
       }
       setExtractedAccounts(prev => prev.filter(p => p.suggestedCode !== acc.suggestedCode));
   };
@@ -165,14 +158,13 @@ export const ChartOfAccounts: React.FC = () => {
   const openEditModal = (acc: COAAccount) => {
     setEditingAccount(acc);
     setFormData({ ...acc });
-    // Heuristic: If it has children, treat as group
     const hasChildren = accounts.some(a => a.parentCode === acc.code);
     setIsGroupAccount(hasChildren);
     setFormError('');
     setShowModal(true);
   };
 
-  const handleDelete = (code: string) => {
+  const handleDelete = async (code: string) => {
     const account = accounts.find(a => a.code === code);
     if (!account) return;
     
@@ -186,7 +178,6 @@ export const ChartOfAccounts: React.FC = () => {
         return;
     }
 
-    // Check for children
     const hasChildren = accounts.some(a => a.parentCode === code);
     if (hasChildren) {
         alert(`Cannot delete account ${code} because it has active sub-accounts. Please delete or reassign sub-accounts first.`);
@@ -194,26 +185,24 @@ export const ChartOfAccounts: React.FC = () => {
     }
 
     if (window.confirm(`Are you sure you want to delete account ${code} - ${account.name}? This action cannot be undone.`)) {
-        setAccounts(accounts.filter(a => a.code !== code));
+        await accountService.delete(code);
+        await loadData();
     }
   };
 
-  const handleSave = (addAnother: boolean = false) => {
+  const handleSave = async (addAnother: boolean = false) => {
       setFormError('');
 
-      // 1. Mandatory Fields
       if (!formData.code || !formData.name || !formData.type) {
           setFormError('Account Code, Name, and Classification are mandatory.');
           return;
       }
 
-      // 2. Code Format (Basic Regex for 5 digits usually, but lets allow 3+)
       if (formData.code.length < 3) {
           setFormError('Account Code must be at least 3 digits.');
           return;
       }
 
-      // 3. Parent Logic
       if (formData.parentCode) {
           const parentExists = accounts.find(a => a.code === formData.parentCode);
           if (!parentExists) {
@@ -224,13 +213,11 @@ export const ChartOfAccounts: React.FC = () => {
               setFormError('Circular Reference: Account cannot be its own parent.');
               return;
           }
-          // Standard: Verify Parent Type matches Child Type (soft check)
           if (parentExists.type !== formData.type) {
               if(!window.confirm(`Warning: Parent is ${parentExists.type} but child is ${formData.type}. Continue?`)) return;
           }
       }
 
-      // 4. Duplicate Check
       if (!editingAccount || editingAccount.code !== formData.code) {
           if (accounts.some(a => a.code === formData.code)) {
               setFormError(`Account Code ${formData.code} is already in use.`);
@@ -238,42 +225,35 @@ export const ChartOfAccounts: React.FC = () => {
           }
       }
 
-      // 5. Intelligent Warnings (Soft Validation)
-      if (formData.type === AccountType.ASSET && !formData.code.startsWith('1') && !formData.code.startsWith('2')) {
-           // Just a warning, doesn't block save in this demo, but could display UI feedback
-      }
-
       const finalAccount: COAAccount = {
           ...formData as COAAccount,
-          // Ensure system flags aren't accidentally set by user form
           isSystem: editingAccount ? editingAccount.isSystem : false 
       };
 
+      await accountService.save(finalAccount);
+      await loadData();
+
       if (editingAccount) {
-          setAccounts(accounts.map(a => a.code === editingAccount.code ? finalAccount : a));
           setShowModal(false);
       } else {
-          setAccounts([...accounts, finalAccount].sort((a, b) => a.code.localeCompare(b.code)));
           if (addAnother) {
-              setFormData({ type: formData.type, parentCode: formData.parentCode, balance: 0, code: '' }); // Reset partial
-              // Keep type and parent for rapid entry
+              setFormData({ type: formData.type, parentCode: formData.parentCode, balance: 0, code: '' }); 
           } else {
               setShowModal(false);
           }
       }
   };
   
-  const handleLoadIFRS = () => {
+  const handleLoadIFRS = async () => {
       if (!window.confirm("Load Standard IFRS Template? Existing accounts will be preserved.")) return;
       let addedCount = 0;
-      const newAccounts = [...accounts];
-      IFRS_TEMPLATE.forEach(templateAcc => {
-          if (!newAccounts.some(existing => existing.code === templateAcc.code)) {
-              newAccounts.push(templateAcc);
+      for (const templateAcc of IFRS_TEMPLATE) {
+          if (!accounts.some(existing => existing.code === templateAcc.code)) {
+              await accountService.save(templateAcc);
               addedCount++;
           }
-      });
-      setAccounts(newAccounts.sort((a, b) => a.code.localeCompare(b.code)));
+      }
+      await loadData();
       alert(`Successfully added ${addedCount} IFRS standard accounts.`);
   };
 
@@ -290,7 +270,6 @@ export const ChartOfAccounts: React.FC = () => {
       }
   };
 
-  // Helper for Modal UI
   const getParentName = (code?: string) => {
       if (!code) return null;
       return accounts.find(a => a.code === code)?.name || "Unknown Parent";
@@ -505,7 +484,7 @@ export const ChartOfAccounts: React.FC = () => {
         </div>
       </Card>
 
-      {/* --- MODALS --- */}
+      {/* --- MODALS (Scan & Create) kept similar but ensure they use updated state --- */}
       <AnimatePresence>
       {showScanModal && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -515,7 +494,6 @@ export const ChartOfAccounts: React.FC = () => {
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]"
               >
-                  {/* ... (Scan modal content kept as is) ... */}
                   <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
                       <div className="flex items-center gap-3">
                           <div className="p-2 bg-indigo-600 text-white rounded-lg"><Scan size={20} /></div>
@@ -557,7 +535,6 @@ export const ChartOfAccounts: React.FC = () => {
                                           <h4 className="font-bold text-slate-800">Identified Accounts ({extractedAccounts.length})</h4>
                                           <Button size="sm" variant="ghost" onClick={() => { setScanFile(null); setExtractedAccounts([]); }}>Scan New File</Button>
                                       </div>
-                                      {/* Table for results */}
                                       <div className="border border-slate-200 rounded-xl overflow-hidden">
                                           <table className="w-full text-sm text-left">
                                               <thead className="bg-slate-50 border-b border-slate-100">
@@ -600,7 +577,6 @@ export const ChartOfAccounts: React.FC = () => {
       )}
       </AnimatePresence>
 
-      {/* --- CREATE/EDIT MODAL (Standard Grade) --- */}
       <AnimatePresence>
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -610,7 +586,6 @@ export const ChartOfAccounts: React.FC = () => {
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
                 className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100"
             >
-                {/* Header */}
                 <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
                         <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
@@ -623,7 +598,6 @@ export const ChartOfAccounts: React.FC = () => {
                 </div>
                 
                 <div className="p-8">
-                    {/* Error Banner */}
                     <AnimatePresence>
                     {formError && (
                         <motion.div 
@@ -642,7 +616,6 @@ export const ChartOfAccounts: React.FC = () => {
                     </AnimatePresence>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Left Column: Identity */}
                         <div className="space-y-5">
                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2 mb-4">Account Identity</h4>
                             
@@ -680,11 +653,9 @@ export const ChartOfAccounts: React.FC = () => {
                             />
                         </div>
 
-                        {/* Right Column: Hierarchy & Settings */}
                         <div className="space-y-5">
                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2 mb-4">Structure & Hierarchy</h4>
                             
-                            {/* Toggle Structure */}
                             <div className="flex p-1 bg-slate-100 rounded-xl mb-4">
                                 <button 
                                     onClick={() => setIsGroupAccount(false)}
@@ -733,7 +704,6 @@ export const ChartOfAccounts: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Footer Actions */}
                 <div className="px-8 py-5 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
                     <Button variant="ghost" onClick={() => setShowModal(false)}>Cancel</Button>
                     <div className="flex gap-3">

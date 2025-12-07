@@ -1,7 +1,8 @@
-import { GoogleGenAI, Type } from "@google/genai";
 
-// Ensure API Key is available
-const apiKey = process.env.API_KEY || '';
+import { GoogleGenAI, Type, Modality } from "@google/genai";
+
+// Ensure API Key is available - Safely check for process to avoid browser reference errors
+const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const suggestCOACode = async (accountName: string, existingAccounts: {code: string, name: string}[]) => {
@@ -234,4 +235,52 @@ export const generateCOAFromDocument = async (base64Data: string, mimeType: stri
         console.error("Gemini Document Analysis Error:", e);
         return null;
     }
+};
+
+export const getChatResponse = async (userQuery: string) => {
+    if (!ai) return "I'm offline right now. Please check your API key.";
+
+    const model = "gemini-2.5-flash";
+    const prompt = `
+        You are "Nexus AI", a friendly and professional support assistant for the Nexus Quantum Ledger ERP system.
+        
+        System Context:
+        - Nexus is a multi-tenant cloud ERP.
+        - Modules: Journal Entries, General Ledger, AP, AR, Payroll, System Config.
+        - Features: AI Auto-coding, Multi-currency, Role-based access.
+        
+        User Query: "${userQuery}"
+        
+        Provide a helpful, concise response. If the query is about specific accounting tasks (e.g., "How to reverse a journal"), explain the steps in the UI.
+        If you don't know, suggest contacting human support.
+        Keep response under 3 sentences unless detailed steps are needed.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model,
+            contents: prompt,
+        });
+        return response.text;
+    } catch (e) {
+        return "I'm having trouble connecting to the knowledge base.";
+    }
+};
+
+export const connectLiveSession = async (callbacks: any) => {
+    if (!ai) throw new Error("AI not initialized. Please check API Key.");
+    
+    return ai.live.connect({
+        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
+            },
+            systemInstruction: {
+                parts: [{ text: "You are Nexus Voice, a polite and efficient ERP assistant. Answer accounting questions briefly." }]
+            }
+        },
+        callbacks
+    });
 };

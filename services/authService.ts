@@ -1,10 +1,7 @@
 
-import { User, Role, Company, OnboardingToken } from '../types';
 
-const USERS_KEY = 'nexus_users';
-const COMPANIES_KEY = 'nexus_companies';
-const TOKENS_KEY = 'nexus_onboarding_tokens';
-const SESSION_KEY = 'nexus_session';
+import { User, Role, Company, OnboardingToken } from '../types';
+import { db, DB_KEYS } from './database';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -27,12 +24,7 @@ const generateTempPassword = () => {
 export const authService = {
   // --- Session Management ---
   getSession: (): User | null => {
-    try {
-      const stored = localStorage.getItem(SESSION_KEY);
-      return stored ? JSON.parse(stored) : null;
-    } catch (e) {
-      return null;
-    }
+    return db.getSession<User>();
   },
 
   // --- Core Authentication ---
@@ -50,22 +42,22 @@ export const authService = {
              department: 'System', 
              status: 'Active' 
          };
-         localStorage.setItem(SESSION_KEY, JSON.stringify(adminUser));
+         db.setSession(adminUser);
+         // Ensure record exists in DB for lookups
+         const exists = await db.findOne<User>(DB_KEYS.USERS, u => u.id === '000');
+         if (!exists) await db.insert(DB_KEYS.USERS, adminUser);
+         
          return { success: true, user: adminUser };
     }
 
     // 2. Regular User / Company Admin Check
     try {
-      const usersStr = localStorage.getItem(USERS_KEY);
-      const users: any[] = usersStr ? JSON.parse(usersStr) : [];
-      
       const inputHash = await hashPassword(password);
-      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.passwordHash === inputHash);
+      const user = await db.findOne<User>(DB_KEYS.USERS, u => u.email.toLowerCase() === email.toLowerCase() && u.passwordHash === inputHash);
 
       if (user) {
         // Check Company Status
-        const companies = authService.getCompanies();
-        const company = companies.find(c => c.id === user.companyId);
+        const company = await db.findOne<Company>(DB_KEYS.COMPANIES, c => c.id === user.companyId);
         
         if (company && (company.status === 'Suspended')) {
              return { success: false, error: 'Your organization account has been suspended. Please contact Nexus support.' };
@@ -87,7 +79,11 @@ export const authService = {
           requiresPasswordChange: user.requiresPasswordChange
         };
         
-        localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
+        db.setSession(sessionUser);
+        
+        // Update last login in DB
+        await db.update<User>(DB_KEYS.USERS, user.id, { lastLogin: new Date().toISOString() });
+
         return { success: true, user: sessionUser };
       }
 
@@ -100,9 +96,8 @@ export const authService = {
   // Impersonate a Tenant Admin (God Mode)
   impersonateTenant: async (companyId: string): Promise<{ success: boolean; error?: string }> => {
       await delay(1000);
-      const users = authService.getAllUsers();
-      // Find the first admin or super user for that company
-      const targetUser = users.find(u => u.companyId === companyId && (u.role === Role.ADMIN || u.role === Role.SUPER_ADMIN));
+      const users = await db.find<User>(DB_KEYS.USERS, u => u.companyId === companyId && (u.role === Role.ADMIN || u.role === Role.SUPER_ADMIN));
+      const targetUser = users[0];
       
       if (!targetUser) {
           return { success: false, error: 'No valid administrator found for this tenant.' };
@@ -119,19 +114,26 @@ export const authService = {
           lastLogin: new Date().toISOString()
       };
 
-      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
+      db.setSession(sessionUser);
       return { success: true };
   },
 
   logout: async () => {
     await delay(300);
-    localStorage.removeItem(SESSION_KEY);
+    db.clearSession();
   },
 
   // --- Data Access ---
   getAllUsers: (): User[] => {
-      const usersStr = localStorage.getItem(USERS_KEY);
-      return usersStr ? JSON.parse(usersStr) : [];
+      // Synchronous wrapper for compatibility, but ideal to move to async. 
+      // For now, since DB is localStorage based, we can cheat and use the internal get logic if needed, 
+      // but let's assume the component handles the promise or we make this async.
+      // Wait, the components expect synchronous return currently. 
+      // We'll use a direct access hack for this specific method until components are refactored to async.
+      try {
+          const data = localStorage.getItem(DB_KEYS.USERS);
+          return data ? JSON.parse(data) : [];
+      } catch { return []; }
   },
 
   getCompanyUsers: (companyId: string): User[] => {
@@ -139,44 +141,32 @@ export const authService = {
       return all.filter(u => u.companyId === companyId);
   },
 
-  saveUser: (user: User) => {
-      const usersStr = localStorage.getItem(USERS_KEY);
-      const users: User[] = usersStr ? JSON.parse(usersStr) : [];
-      
-      const existingIndex = users.findIndex(u => u.id === user.id);
-      if (existingIndex >= 0) {
-          users[existingIndex] = user;
+  saveUser: async (user: User) => {
+      const existing = await db.findOne<User>(DB_KEYS.USERS, u => u.id === user.id);
+      if (existing) {
+          await db.update(DB_KEYS.USERS, user.id, user);
       } else {
-          users.push(user);
+          await db.insert(DB_KEYS.USERS, user);
       }
-      localStorage.setItem(USERS_KEY, JSON.stringify(users));
   },
 
   // --- Super Admin Management Functions ---
 
-  // Change user status (Active/Suspended)
   adminUpdateUserStatus: async (userId: string, status: User['status']) => {
       await delay(400);
-      const users = authService.getAllUsers();
-      const updatedUsers = users.map(u => u.id === userId ? { ...u, status } : u);
-      localStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers));
+      await db.update<User>(DB_KEYS.USERS, userId, { status });
       return true;
   },
 
-  // Force reset password (sets temp password)
   adminResetPassword: async (userId: string): Promise<string> => {
       await delay(600);
       const tempPass = generateTempPassword();
       const tempHash = await hashPassword(tempPass);
-      
-      const users = authService.getAllUsers();
-      const updatedUsers = users.map(u => u.id === userId ? { ...u, passwordHash: tempHash, requiresPasswordChange: true } : u);
-      localStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers));
+      await db.update<User>(DB_KEYS.USERS, userId, { passwordHash: tempHash, requiresPasswordChange: true });
       return tempPass;
   },
 
   getTenantLogs: (companyId: string) => {
-      // Simulation of logs
       const actions = ['Feature Enabled', 'User Added', 'Login Failed', 'Report Exported', 'Settings Changed'];
       const logs = [];
       for(let i=0; i<5; i++) {
@@ -193,23 +183,21 @@ export const authService = {
   // --- Super Admin Provisioning ---
   
   getCompanies: (): Company[] => {
-      const str = localStorage.getItem(COMPANIES_KEY);
-      return str ? JSON.parse(str) : [];
+      try {
+          const data = localStorage.getItem(DB_KEYS.COMPANIES);
+          return data ? JSON.parse(data) : [];
+      } catch { return []; }
   },
 
   updateCompanyStatus: async (companyId: string, status: Company['status']) => {
       await delay(500);
-      const companies = authService.getCompanies();
-      const updated = companies.map(c => c.id === companyId ? { ...c, status } : c);
-      localStorage.setItem(COMPANIES_KEY, JSON.stringify(updated));
+      await db.update<Company>(DB_KEYS.COMPANIES, companyId, { status });
       return true;
   },
 
   updateCompanyFeatures: async (companyId: string, features: Company['features']) => {
       await delay(500);
-      const companies = authService.getCompanies();
-      const updated = companies.map(c => c.id === companyId ? { ...c, features } : c);
-      localStorage.setItem(COMPANIES_KEY, JSON.stringify(updated));
+      await db.update<Company>(DB_KEYS.COMPANIES, companyId, { features });
       return true;
   },
 
@@ -218,7 +206,7 @@ export const authService = {
       try {
           const companies = authService.getCompanies();
           if (companies.some(c => c.name === name || c.domain === domain)) {
-              return { success: false }; // Duplicate
+              return { success: false }; 
           }
 
           const newCompany: Company = {
@@ -231,7 +219,6 @@ export const authService = {
               createdAt: new Date().toISOString()
           };
 
-          // Create Placeholder Admin User
           const tempPassword = generateTempPassword();
           const tempHash = await hashPassword(tempPassword);
           const adminEmail = `admin@${domain}`;
@@ -244,37 +231,29 @@ export const authService = {
               passwordHash: tempHash,
               role: Role.ADMIN,
               department: 'Management',
-              status: 'Pending', // Pending onboarding
+              status: 'Pending', 
               requiresPasswordChange: true,
               createdAt: new Date().toISOString()
           };
 
-          // Save User
-          const usersStr = localStorage.getItem(USERS_KEY);
-          const users = usersStr ? JSON.parse(usersStr) : [];
-          users.push(newAdminUser);
-          localStorage.setItem(USERS_KEY, JSON.stringify(users));
+          await db.insert(DB_KEYS.USERS, newAdminUser);
+          await db.insert(DB_KEYS.COMPANIES, newCompany);
 
-          // Save Company
-          companies.push(newCompany);
-          localStorage.setItem(COMPANIES_KEY, JSON.stringify(companies));
-
-          // Generate Onboarding Token
           const tokenStr = Math.random().toString(36).substr(2) + Math.random().toString(36).substr(2);
           const tokenData: OnboardingToken = {
               token: tokenStr,
               companyId: newCompany.id,
               userId: newAdminUser.id,
               email: adminEmail,
-              tempPasswordRaw: tempPassword, // Exposed ONE TIME for the Super Admin to copy
-              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
+              tempPasswordRaw: tempPassword,
+              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
           };
 
-          // Store Token
-          const tokensStr = localStorage.getItem(TOKENS_KEY);
-          const tokens = tokensStr ? JSON.parse(tokensStr) : [];
+          await db.insert(DB_KEYS.TOKENS, tokenData); 
+          
+          const tokens = JSON.parse(localStorage.getItem(DB_KEYS.TOKENS) || '[]');
           tokens.push(tokenData);
-          localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
+          localStorage.setItem(DB_KEYS.TOKENS, JSON.stringify(tokens));
 
           return { success: true, company: newCompany, tokenData };
 
@@ -288,7 +267,7 @@ export const authService = {
 
   validateOnboardingToken: async (tokenStr: string): Promise<{ valid: boolean; data?: OnboardingToken; error?: string }> => {
       await delay(500);
-      const tokensStr = localStorage.getItem(TOKENS_KEY);
+      const tokensStr = localStorage.getItem(DB_KEYS.TOKENS);
       const tokens: OnboardingToken[] = tokensStr ? JSON.parse(tokensStr) : [];
       
       const found = tokens.find(t => t.token === tokenStr);
@@ -305,61 +284,48 @@ export const authService = {
           const { valid, data } = await authService.validateOnboardingToken(tokenStr);
           if (!valid || !data) return { success: false, error: 'Invalid session' };
 
-          // 1. Update User Password & Status
-          const usersStr = localStorage.getItem(USERS_KEY);
-          let users = usersStr ? JSON.parse(usersStr) : [];
           const newHash = await hashPassword(newPassword);
-
-          users = users.map((u: any) => {
-              if (u.id === data.userId) {
-                  return { 
-                      ...u, 
-                      passwordHash: newHash, 
-                      fullName, 
-                      status: 'Active', 
-                      requiresPasswordChange: false 
-                  };
-              }
-              return u;
+          await db.update<User>(DB_KEYS.USERS, data.userId, { 
+              passwordHash: newHash, 
+              fullName, 
+              status: 'Active', 
+              requiresPasswordChange: false 
           });
-          localStorage.setItem(USERS_KEY, JSON.stringify(users));
 
-          // 2. Update Company Status
-          const companiesStr = localStorage.getItem(COMPANIES_KEY);
-          let companies = companiesStr ? JSON.parse(companiesStr) : [];
-          companies = companies.map((c: Company) => {
-              if (c.id === data.companyId) {
-                  return { ...c, status: 'Active' };
-              }
-              return c;
-          });
-          localStorage.setItem(COMPANIES_KEY, JSON.stringify(companies));
+          await db.update<Company>(DB_KEYS.COMPANIES, data.companyId, { status: 'Active' });
 
-          // 3. Burn Token
-          const tokensStr = localStorage.getItem(TOKENS_KEY);
+          // Burn Token
+          const tokensStr = localStorage.getItem(DB_KEYS.TOKENS);
           let tokens = tokensStr ? JSON.parse(tokensStr) : [];
           tokens = tokens.filter((t: OnboardingToken) => t.token !== tokenStr);
-          localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
+          localStorage.setItem(DB_KEYS.TOKENS, JSON.stringify(tokens));
 
-          // 4. Auto-Login
-          const updatedUser = users.find((u: any) => u.id === data.userId);
-          const sessionUser: User = {
-            id: updatedUser.id,
-            companyId: updatedUser.companyId,
-            fullName: updatedUser.fullName,
-            email: updatedUser.email,
-            role: updatedUser.role,
-            department: updatedUser.department,
-            status: updatedUser.status,
-            lastLogin: new Date().toISOString()
-          };
-          localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
+          // Auto-Login
+          const updatedUser = await db.findOne<User>(DB_KEYS.USERS, u => u.id === data.userId);
+          if (updatedUser) {
+              const sessionUser: User = {
+                id: updatedUser.id,
+                companyId: updatedUser.companyId,
+                fullName: updatedUser.fullName,
+                email: updatedUser.email,
+                role: updatedUser.role,
+                department: updatedUser.department,
+                status: updatedUser.status,
+                lastLogin: new Date().toISOString()
+              };
+              db.setSession(sessionUser);
+          }
 
           return { success: true };
 
       } catch (e) {
           return { success: false, error: 'Onboarding failed.' };
       }
+  },
+
+  // --- System Management ---
+  factoryReset: async () => {
+      return db.factoryReset(true);
   },
 
   signup: async (fullName: string, email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> => {

@@ -5,50 +5,24 @@ import { JournalEntryForm } from './JournalEntryForm';
 import { JournalEnquiry } from './JournalEnquiry';
 import { JournalUpload } from './JournalUpload';
 import { PlusCircle, Search, UploadCloud, TrendingUp, AlertCircle, FileCheck, BarChart3 } from 'lucide-react';
-import { JournalEntry, JournalStatus, JournalType } from '../../types';
+import { JournalEntry, JournalStatus } from '../../types';
 import { Card } from '../../components/ui/UtilityComponents';
-import { authService } from '../../services/authService';
-
-// Mock DB - Only for Company ID '1' (Demo)
-const DEMO_JOURNALS: JournalEntry[] = [
-    {
-        journalNumber: 'JE-100452',
-        reference: 'PAYROLL-JAN',
-        transactionDate: '25-01-2025',
-        postingDate: '2025-01-25T14:30:00.000Z',
-        type: JournalType.GENERAL,
-        description: 'Monthly payroll processing for January 2025 including tax and benefits allocations',
-        currency: 'USD',
-        exchangeRate: 1,
-        reportingCurrency: 'USD',
-        status: JournalStatus.POSTED,
-        userId: 'SYS-ADMIN',
-        period: '01-2025',
-        totalAmount: 125000,
-        lines: [
-            { id: '1', accountId: '50100', accountName: 'Salaries Expense', debit: 125000, credit: 0, costCenter: 'HR' },
-            { id: '2', accountId: '10110', accountName: 'Cash in Bank', debit: 0, credit: 125000 }
-        ]
-    }
-];
+import { journalService } from '../../services/journalService';
 
 export const JournalModule: React.FC<{ initialTab?: string }> = ({ initialTab }) => {
     const [activeTab, setActiveTab] = useState(initialTab || 'new');
     const [entries, setEntries] = useState<JournalEntry[]>([]);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    // Initial Data Load
+    // Load Data via Service
     useEffect(() => {
-        const user = authService.getSession();
-        if (user) {
-            // Fresh Start Logic: Only load mocks if it's the demo company ('1')
-            if (user.companyId === '1') {
-                setEntries(DEMO_JOURNALS);
-            } else {
-                setEntries([]); // Fresh Start for new tenants
-            }
-        }
-    }, []);
+        loadData();
+    }, [activeTab]); // Reload on tab switch to catch updates
+
+    const loadData = async () => {
+        const data = await journalService.getAll();
+        setEntries(data);
+    };
 
     // Sync with prop navigation
     useEffect(() => {
@@ -66,32 +40,15 @@ export const JournalModule: React.FC<{ initialTab?: string }> = ({ initialTab })
     const postedCount = entries.filter(e => e.status === JournalStatus.POSTED).length;
     const totalVolume = entries.reduce((acc, curr) => acc + curr.totalAmount, 0);
 
-    const handlePost = (entry: JournalEntry) => {
-        setEntries([entry, ...entries]);
+    const handlePost = async (entry: JournalEntry) => {
+        await journalService.save(entry);
+        await loadData();
         setActiveTab('enquiry');
     };
 
-    const handleReverse = (original: JournalEntry) => {
-        const reversalLines = original.lines.map(l => ({
-            ...l,
-            id: Math.random().toString(),
-            debit: l.credit,
-            credit: l.debit
-        }));
-
-        const reversal: JournalEntry = {
-            ...original,
-            journalNumber: `JE-${Math.floor(200000 + Math.random() * 900000)}`,
-            reference: `REV-${original.journalNumber}`,
-            description: `Reversal of Journal ${original.journalNumber} - ${original.description.substring(0, 50)}...`,
-            type: JournalType.REVERSAL,
-            status: JournalStatus.POSTED,
-            lines: reversalLines,
-            postingDate: new Date().toISOString(),
-            transactionDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '-') 
-        };
-
-        setEntries([reversal, ...entries]);
+    const handleReverse = async (original: JournalEntry) => {
+        await journalService.reverse(original);
+        await loadData();
     };
 
     const tabs = [

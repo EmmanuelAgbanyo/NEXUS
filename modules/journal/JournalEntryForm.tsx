@@ -3,25 +3,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, Button, Badge } from '../../components/ui/UtilityComponents';
 import { ModernInput } from '../../components/ui/ModernInput';
 import { ProfessionalDropdown } from '../../components/ui/ProfessionalDropdown';
-import { JournalType, JournalLine, AccountType, JournalEntry, JournalStatus } from '../../types';
+import { JournalType, JournalLine, AccountType, JournalEntry, JournalStatus, COAAccount } from '../../types';
 import { Plus, Trash2, Save, Send, AlertCircle, Calculator, Search, CheckCircle, Clock, CalendarDays, Globe, Undo, Redo, Sparkles, Loader2, FileText, Hash, Coins, ChevronDown, RefreshCw } from 'lucide-react';
 import { suggestJournalLines } from '../../services/geminiService';
+import { accountService } from '../../services/accountService';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Constants
-const MIN_DESC_LENGTH = 10; // Relaxed for demo flow
+const MIN_DESC_LENGTH = 10; 
 
-// Mock COA for selection
-const MOCK_COA = [
-  { code: '10110', name: 'Cash in Bank', type: AccountType.ASSET },
-  { code: '10120', name: 'Petty Cash', type: AccountType.ASSET },
-  { code: '20100', name: 'Accounts Payable', type: AccountType.LIABILITY },
-  { code: '40100', name: 'Sales Revenue', type: AccountType.REVENUE },
-  { code: '50100', name: 'Rent Expense', type: AccountType.EXPENSE },
-  { code: '50200', name: 'Utilities Expense', type: AccountType.EXPENSE },
+// Enhanced Currency Options
+const CURRENCY_OPTIONS = [
+    { id: 'USD', label: 'USD', description: 'US Dollar (Base)' },
+    { id: 'EUR', label: 'EUR', description: 'Euro - 0.92' },
+    { id: 'GBP', label: 'GBP', description: 'British Pound - 0.79' },
+    { id: 'GHS', label: 'GHS', description: 'Ghanaian Cedi - 13.50' },
+    { id: 'CAD', label: 'CAD', description: 'Canadian Dollar - 1.35' },
+    { id: 'SGD', label: 'SGD', description: 'Singapore Dollar - 1.34' },
 ];
-
-const MOCK_CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'SGD', 'GHS'];
 
 // --- Helper Components ---
 
@@ -85,7 +84,9 @@ const AccountTableSelect = ({ value, onChange, options, autoFocus }: any) => {
                             >
                                 <div className="flex justify-between font-bold text-slate-700">
                                     <span>{opt.code}</span>
-                                    <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 rounded">{opt.type}</span>
+                                    <span className={`text-[10px] text-white px-1.5 rounded ${opt.type === 'Asset' ? 'bg-indigo-400' : opt.type === 'Liability' ? 'bg-amber-400' : 'bg-slate-400'}`}>
+                                        {opt.type}
+                                    </span>
                                 </div>
                                 <div className="text-slate-500 truncate">{opt.name}</div>
                             </div>
@@ -128,6 +129,7 @@ export const JournalEntryForm: React.FC<{ onPost: (entry: JournalEntry) => void 
     const [history, setHistory] = useState<JournalFormState[]>([INITIAL_STATE]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [errors, setErrors] = useState<string[]>([]);
+    const [coa, setCoa] = useState<COAAccount[]>([]);
     
     // AI
     const [isAiProcessing, setIsAiProcessing] = useState(false);
@@ -135,6 +137,14 @@ export const JournalEntryForm: React.FC<{ onPost: (entry: JournalEntry) => void 
 
     const formState = history[currentIndex];
     const { type, reference, date, description, currency, exchangeRate, reportingCurrency, lines } = formState;
+
+    useEffect(() => {
+        const loadAccounts = async () => {
+            const accounts = await accountService.getAll();
+            setCoa(accounts);
+        };
+        loadAccounts();
+    }, []);
 
     // Helpers
     const updateState = (newState: JournalFormState) => {
@@ -153,7 +163,7 @@ export const JournalEntryForm: React.FC<{ onPost: (entry: JournalEntry) => void 
             if (line.id === id) {
                 const updated = { ...line, [field]: value };
                 if (field === 'accountId') {
-                    const acc = MOCK_COA.find(a => a.code === value);
+                    const acc = coa.find(a => a.code === value);
                     updated.accountName = acc ? acc.name : '';
                 }
                 // Exclusive Debit/Credit
@@ -180,10 +190,10 @@ export const JournalEntryForm: React.FC<{ onPost: (entry: JournalEntry) => void 
         setIsAiProcessing(true);
         setAiMessage('Generating...');
         try {
-            const result = await suggestJournalLines(description, MOCK_COA);
+            const result = await suggestJournalLines(description, coa);
             if (result && result.lines) {
                 const newLines = result.lines.map((l: any) => {
-                    const acc = MOCK_COA.find(a => a.code === l.accountCode);
+                    const acc = coa.find(a => a.code === l.accountCode);
                     return {
                         id: Math.random().toString(),
                         accountId: l.accountCode,
@@ -295,20 +305,22 @@ export const JournalEntryForm: React.FC<{ onPost: (entry: JournalEntry) => void 
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-100 flex flex-col justify-between">
                      <div>
                          <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 block">Valuation</label>
-                         <div className="flex items-center justify-between mb-3">
-                             <ProfessionalDropdown 
-                                options={MOCK_CURRENCIES.map(c => ({id: c, label: c}))}
-                                value={currency}
-                                onChange={(v) => updateState({...formState, currency: v as string})}
-                                className="w-24"
-                             />
-                             <div className="text-right">
+                         <div className="flex items-center justify-between mb-3 gap-2">
+                             <div className="w-40 relative z-20">
+                                <ProfessionalDropdown 
+                                    options={CURRENCY_OPTIONS}
+                                    value={currency}
+                                    onChange={(v) => updateState({...formState, currency: v as string})}
+                                    placeholder="Currency"
+                                />
+                             </div>
+                             <div className="text-right flex-1">
                                  <div className="text-xs text-slate-400">Rate to {reportingCurrency}</div>
                                  <input 
                                     type="number"
                                     value={exchangeRate}
                                     onChange={(e) => updateState({...formState, exchangeRate: parseFloat(e.target.value)})}
-                                    className="text-right font-mono font-bold bg-transparent border-b border-slate-300 w-20 focus:border-indigo-500 outline-none"
+                                    className="text-right font-mono font-bold bg-transparent border-b border-slate-300 w-full focus:border-indigo-500 outline-none"
                                  />
                              </div>
                          </div>
@@ -359,7 +371,7 @@ export const JournalEntryForm: React.FC<{ onPost: (entry: JournalEntry) => void 
                                         <AccountTableSelect 
                                             value={line.accountId}
                                             onChange={(val: string) => updateLine(line.id, 'accountId', val)}
-                                            options={MOCK_COA}
+                                            options={coa}
                                         />
                                     </td>
                                     <td className="px-2 py-1">

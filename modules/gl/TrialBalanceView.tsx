@@ -4,8 +4,10 @@ import { Card, Button } from '../../components/ui/UtilityComponents';
 import { TrialBalanceLine, AccountType } from '../../types';
 import { ChevronRight, TrendingUp, TrendingDown, Minus, Search, ArrowRight, Download, Loader2, Check, BarChart2, Eye, History } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { dataService } from '../../services/dataService';
+import { useToast } from '../../components/ui/Toast';
 
-// Mock TB Data
+// Mock TB Data (would typically come from aggregated journals in localStorage)
 const MOCK_TB: TrialBalanceLine[] = [
     { accountCode: '10000', accountName: 'Assets', type: AccountType.ASSET, currentDebit: 1500000, currentCredit: 0, currentNet: 1500000, priorNet: 1400000, variance: 100000, variancePercent: 7.14, level: 0, hasChildren: true },
     { accountCode: '10100', accountName: 'Current Assets', type: AccountType.ASSET, currentDebit: 250000, currentCredit: 0, currentNet: 250000, priorNet: 200000, variance: 50000, variancePercent: 25.0, level: 1, hasChildren: true },
@@ -21,10 +23,19 @@ interface TrialBalanceViewProps {
 }
 
 export const TrialBalanceView: React.FC<TrialBalanceViewProps> = ({ onDrillDown }) => {
-    const [isExporting, setIsExporting] = useState(false);
+    const { addToast } = useToast();
     
     // Max value for scaling bars
     const maxVal = Math.max(...MOCK_TB.map(r => Math.abs(r.currentNet)));
+
+    const handleExport = () => {
+        try {
+            dataService.downloadCSV(MOCK_TB, 'Trial_Balance_Report');
+            addToast('Trial Balance exported successfully', 'success');
+        } catch(e) {
+            addToast('Export failed', 'error');
+        }
+    };
 
     return (
         <div className="h-full flex flex-col bg-white">
@@ -41,7 +52,7 @@ export const TrialBalanceView: React.FC<TrialBalanceViewProps> = ({ onDrillDown 
                 </div>
                 <Button 
                     size="sm" variant="secondary" 
-                    onClick={() => setIsExporting(!isExporting)}
+                    onClick={handleExport}
                     className="border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200"
                 >
                     <Download size={14} className="mr-2" /> Export Report
@@ -126,7 +137,6 @@ export const TrialBalanceView: React.FC<TrialBalanceViewProps> = ({ onDrillDown 
                                 </td>
 
                                 <td className="px-6 py-3 text-right">
-                                    {/* Quick Actions overlay */}
                                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end gap-1">
                                         <button 
                                             onClick={() => onDrillDown(row.accountCode)}

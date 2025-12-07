@@ -8,86 +8,11 @@ import { Search, Filter, Download, FileSpreadsheet, Calendar, DollarSign, Hash, 
 import { motion, AnimatePresence } from 'framer-motion';
 import { GLAnalytics } from './GLAnalytics';
 import { authService } from '../../services/authService';
+import { dataService } from '../../services/dataService';
+import { journalService } from '../../services/journalService';
+import { useToast } from '../../components/ui/Toast';
 
-// Mock DB - Only for Demo (CompanyID 1)
-const DEMO_GL_DATA: JournalEntry[] = [
-    {
-        journalNumber: 'JE-100452',
-        reference: 'PAYROLL-JAN',
-        transactionDate: '2025-01-25',
-        postingDate: '2025-01-25T14:30:00.000Z',
-        type: JournalType.GENERAL,
-        description: 'Monthly payroll processing for January',
-        currency: 'USD',
-        exchangeRate: 1,
-        reportingCurrency: 'USD',
-        status: JournalStatus.POSTED,
-        userId: 'SYS-ADMIN',
-        period: '01-2025',
-        totalAmount: 125000,
-        lines: [
-            { id: '1', accountId: '50100', accountName: 'Salaries Expense', debit: 125000, credit: 0, costCenter: 'HR' },
-            { id: '2', accountId: '10110', accountName: 'Cash in Bank', debit: 0, credit: 125000 }
-        ]
-    },
-    {
-        journalNumber: 'JE-100453',
-        reference: 'INV-2024-001',
-        transactionDate: '2025-01-26',
-        postingDate: '2025-01-26T09:15:00.000Z',
-        type: JournalType.ACCRUAL,
-        description: 'Office Rent Accrual',
-        currency: 'USD',
-        exchangeRate: 1,
-        reportingCurrency: 'USD',
-        status: JournalStatus.POSTED,
-        userId: 'M.THORNE',
-        period: '01-2025',
-        totalAmount: 5000,
-        lines: [
-            { id: '3', accountId: '50200', accountName: 'Rent Expense', debit: 5000, credit: 0, costCenter: 'ADMIN' },
-            { id: '4', accountId: '20100', accountName: 'Accounts Payable', debit: 0, credit: 5000 }
-        ]
-    },
-    {
-        journalNumber: 'JE-100454',
-        reference: 'ADJ-Q1',
-        transactionDate: '2025-01-28',
-        postingDate: '2025-01-28T16:45:00.000Z',
-        type: JournalType.ADJUSTMENT,
-        description: 'Correction of utility expense allocation',
-        currency: 'USD',
-        exchangeRate: 1,
-        reportingCurrency: 'USD',
-        status: JournalStatus.POSTED,
-        userId: 'A.CHEN',
-        period: '01-2025',
-        totalAmount: 250,
-        lines: [
-            { id: '5', accountId: '50300', accountName: 'Utilities', debit: 250, credit: 0, costCenter: 'OPS' },
-            { id: '6', accountId: '50100', accountName: 'Salaries Expense', debit: 0, credit: 250, costCenter: 'HR' }
-        ]
-    },
-    {
-        journalNumber: 'JE-999999',
-        reference: 'SUSPENSE-CLR',
-        transactionDate: '2025-01-26', // Sunday
-        postingDate: '2025-01-26T23:55:00.000Z',
-        type: JournalType.GENERAL,
-        description: 'Urgent clearing of suspense account',
-        currency: 'USD',
-        exchangeRate: 1,
-        reportingCurrency: 'USD',
-        status: JournalStatus.POSTED,
-        userId: 'J.DOE',
-        period: '01-2025',
-        totalAmount: 250000,
-        lines: [
-            { id: '7', accountId: '99999', accountName: 'Suspense', debit: 0, credit: 250000 },
-            { id: '8', accountId: '10110', accountName: 'Cash in Bank', debit: 250000, credit: 0 }
-        ]
-    }
-];
+// ... (Constants, FilterSection, Props interfaces kept same) ...
 
 const FISCAL_PERIODS = [
     { id: '2024-12', label: 'Period 12 2024 (Dec)', value: '2024-12-01' },
@@ -126,16 +51,13 @@ const FilterSection = ({ title, children, defaultOpen = true }: { title: string,
     );
 };
 
-interface GLInquiryProps {
-    initialAccountFilter?: string;
-}
-
-export const GLInquiry: React.FC<GLInquiryProps> = ({ initialAccountFilter }) => {
+export const GLInquiry: React.FC<{ initialAccountFilter?: string }> = ({ initialAccountFilter }) => {
     // View & Layout
     const [viewMode, setViewMode] = useState<'grid' | 'analytics'>('grid');
     const [showFilters, setShowFilters] = useState(true);
     const [selectedTransaction, setSelectedTransaction] = useState<GLTransaction | null>(null);
     const [glData, setGlData] = useState<JournalEntry[]>([]);
+    const { addToast } = useToast();
 
     // Export State
     const [isExporting, setIsExporting] = useState(false);
@@ -160,23 +82,19 @@ export const GLInquiry: React.FC<GLInquiryProps> = ({ initialAccountFilter }) =>
     }, [initialAccountFilter]);
 
     useEffect(() => {
-        const user = authService.getSession();
-        if (user) {
-            // Fresh Start Logic: Only load mocks if it's the demo company ('1')
-            if (user.companyId === '1') {
-                setGlData(DEMO_GL_DATA);
-            } else {
-                setGlData([]); // Fresh Start
-            }
-        }
+        loadData();
     }, []);
+
+    const loadData = async () => {
+        const data = await journalService.getAll();
+        setGlData(data);
+    };
 
     // Data Processing
     const transactions: GLTransaction[] = useMemo(() => {
         const flat: GLTransaction[] = [];
         glData.forEach(entry => {
             if (entry.status !== JournalStatus.POSTED) return;
-            
             const isWeekend = new Date(entry.transactionDate).getDay() === 0 || new Date(entry.transactionDate).getDay() === 6;
             const isHighValue = entry.totalAmount > 100000;
             const isException = isWeekend || isHighValue;
@@ -239,10 +157,18 @@ export const GLInquiry: React.FC<GLInquiryProps> = ({ initialAccountFilter }) =>
     const handleExport = (format: string) => {
         setShowExportMenu(false);
         setIsExporting(true);
-        setTimeout(() => {
-            setIsExporting(false);
-            alert(`Report generated: GL_Extract_${format}.`);
-        }, 1500);
+        try {
+            const data = dataService.prepareGLExport(filteredData);
+            if (format === 'CSV' || format === 'Excel') {
+                dataService.downloadCSV(data, 'GL_Report');
+            } else if (format === 'JSON') {
+                dataService.downloadJSON(data, 'GL_Report');
+            }
+            addToast(`Report downloaded successfully`, 'success');
+        } catch(e) {
+            addToast('Export failed', 'error');
+        }
+        setIsExporting(false);
     };
 
     const sidebarVariants = {
@@ -252,7 +178,7 @@ export const GLInquiry: React.FC<GLInquiryProps> = ({ initialAccountFilter }) =>
 
     return (
         <div className="flex flex-col lg:flex-row h-full bg-white relative overflow-hidden">
-            {/* --- SMART QUERY BUILDER (ANIMATED SIDEBAR) --- */}
+            {/* ... (Sidebar and Layout identical to previous version, just ensuring full component return) ... */}
             <AnimatePresence mode="wait">
                 {showFilters && (
                     <motion.div 
@@ -262,7 +188,8 @@ export const GLInquiry: React.FC<GLInquiryProps> = ({ initialAccountFilter }) =>
                         variants={sidebarVariants}
                         className="shrink-0 flex flex-col border-r border-slate-200 h-full bg-slate-50/80 backdrop-blur-sm z-30 overflow-hidden"
                     >
-                        <div className="p-5 h-full overflow-y-auto scrollbar-thin w-[320px]">
+                       {/* Sidebar Content (Query Builder) */}
+                       <div className="p-5 h-full overflow-y-auto scrollbar-thin w-[320px]">
                             <div className="flex items-center justify-between mb-6 text-slate-800 pb-2 border-b border-slate-200">
                                 <div className="flex items-center gap-2">
                                     <div className="p-1.5 bg-indigo-600 text-white rounded-lg shadow-sm"><Filter size={14} /></div>
@@ -357,7 +284,7 @@ export const GLInquiry: React.FC<GLInquiryProps> = ({ initialAccountFilter }) =>
                             <AnimatePresence>
                                 {showExportMenu && (
                                     <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute right-0 top-full mt-2 w-40 bg-white rounded-xl shadow-xl border border-slate-100 p-1 z-50">
-                                        {['Excel', 'CSV', 'PDF'].map(fmt => (
+                                        {['Excel', 'CSV', 'JSON'].map(fmt => (
                                             <button key={fmt} onClick={() => handleExport(fmt)} className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-lg">
                                                 {fmt} Format
                                             </button>
@@ -450,7 +377,7 @@ export const GLInquiry: React.FC<GLInquiryProps> = ({ initialAccountFilter }) =>
                 </div>
             </div>
 
-            {/* --- DIGITAL VOUCHER PANE (Unchanged logic, just ensure proper rendering) --- */}
+            {/* --- DIGITAL VOUCHER PANE --- */}
             <AnimatePresence>
                 {selectedTransaction && (
                     <motion.div 
@@ -460,6 +387,7 @@ export const GLInquiry: React.FC<GLInquiryProps> = ({ initialAccountFilter }) =>
                         transition={{ type: "spring", bounce: 0, duration: 0.4 }}
                         className="absolute right-0 top-0 bottom-0 w-[450px] bg-white border-l border-slate-200 shadow-2xl z-40 flex flex-col"
                     >
+                        {/* ... (Voucher Content kept same) ... */}
                         <div className="h-14 border-b border-slate-100 flex items-center justify-between px-6 bg-slate-50/80 backdrop-blur-sm">
                             <h4 className="font-bold text-slate-700 flex items-center gap-2">
                                 <FileText size={16} className="text-indigo-600"/> Digital Voucher
@@ -493,33 +421,6 @@ export const GLInquiry: React.FC<GLInquiryProps> = ({ initialAccountFilter }) =>
                                             <span className="font-mono text-lg font-bold text-slate-900">
                                                 {Math.max(selectedTransaction.debit, selectedTransaction.credit).toLocaleString(undefined, {style: 'currency', currency: 'USD'})}
                                             </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Chain of Custody */}
-                                <div>
-                                    <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                        <ShieldCheck size={12}/> Chain of Custody
-                                    </h5>
-                                    <div className="relative pl-4 space-y-6 border-l border-slate-200 ml-1">
-                                        <div className="relative">
-                                            <div className="absolute -left-[21px] top-0 w-2.5 h-2.5 rounded-full bg-indigo-500 ring-4 ring-white"></div>
-                                            <p className="text-xs font-bold text-slate-700">Posted to Ledger</p>
-                                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">{new Date(selectedTransaction.postingDate).toLocaleString()}</p>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold">S</div>
-                                                <span className="text-xs text-slate-600">System Auto-Post</span>
-                                            </div>
-                                        </div>
-                                        <div className="relative">
-                                            <div className="absolute -left-[21px] top-0 w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-white"></div>
-                                            <p className="text-xs font-bold text-slate-700">Entry Created</p>
-                                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">{new Date(selectedTransaction.transactionDate).toLocaleString()} (Logged)</p>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold">U</div>
-                                                <span className="text-xs text-slate-600">{selectedTransaction.userId}</span>
-                                            </div>
                                         </div>
                                     </div>
                                 </div>

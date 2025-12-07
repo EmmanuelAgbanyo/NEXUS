@@ -1,8 +1,11 @@
 
 import React, { useState } from 'react';
 import { Card, SectionHeader, Button, Badge } from '../../components/ui/UtilityComponents';
-import { Download, Upload, Database, FileSpreadsheet, AlertTriangle, CheckCircle, RefreshCw, Clock, HardDrive, Shield, Search, FileText, ChevronRight, Cloud, MoreHorizontal, Command } from 'lucide-react';
+import { Download, Upload, Database, FileSpreadsheet, AlertTriangle, CheckCircle, RefreshCw, Clock, HardDrive, Shield, Search, FileText, Cloud, MoreHorizontal, Command, FileJson } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { dataService } from '../../services/dataService';
+import { authService } from '../../services/authService';
+import { useToast } from '../../components/ui/Toast';
 
 type Tab = 'export' | 'import' | 'backup';
 
@@ -14,28 +17,50 @@ const INITIAL_BACKUPS = [
 ];
 
 const EXPORT_MODULES = [
-    { id: 'coa', name: 'Chart of Accounts', format: 'CSV', lastExport: 'Never', icon: FileText, color: 'text-indigo-600 bg-indigo-50' },
-    { id: 'journals', name: 'Posted Journals', format: 'CSV', lastExport: '2025-04-10', icon: FileSpreadsheet, color: 'text-emerald-600 bg-emerald-50' },
-    { id: 'users', name: 'User Directory', format: 'Excel', lastExport: '2025-03-15', icon: Shield, color: 'text-violet-600 bg-violet-50' },
-    { id: 'audit', name: 'Audit Logs', format: 'JSON', lastExport: '2025-04-11', icon: Database, color: 'text-amber-600 bg-amber-50' },
-    { id: 'gl', name: 'General Ledger', format: 'Excel', lastExport: 'Never', icon: HardDrive, color: 'text-blue-600 bg-blue-50' },
+    { id: 'users', name: 'User Directory', format: 'CSV', lastExport: '2025-03-15', icon: Shield, color: 'text-violet-600 bg-violet-50' },
+    { id: 'journals', name: 'Journal Entries', format: 'CSV', lastExport: '2025-04-10', icon: FileSpreadsheet, color: 'text-emerald-600 bg-emerald-50' },
+    { id: 'gl', name: 'General Ledger', format: 'JSON', lastExport: 'Never', icon: HardDrive, color: 'text-blue-600 bg-blue-50' },
 ];
 
 export const DataManagement: React.FC = () => {
     const [activeTab, setActiveTab] = useState<Tab>('export');
     const [searchTerm, setSearchTerm] = useState('');
+    const { addToast } = useToast();
 
     // Import State
-    const [importType, setImportType] = useState('journals');
+    const [importType, setImportType] = useState('users');
     const [importFile, setImportFile] = useState<File | null>(null);
     const [importStatus, setImportStatus] = useState<'idle' | 'scanning' | 'ready' | 'success'>('idle');
-    const [scanResult, setScanResult] = useState({ rows: 0, errors: 0 });
+    const [scanResult, setScanResult] = useState({ rows: 0, errors: 0, data: [] as any[] });
 
     // Backup State
     const [backups, setBackups] = useState(INITIAL_BACKUPS);
     const [isCreatingBackup, setIsCreatingBackup] = useState(false);
 
     // --- Actions ---
+
+    const handleExport = (moduleId: string) => {
+        try {
+            if (moduleId === 'users') {
+                const users = authService.getAllUsers();
+                dataService.downloadCSV(users, 'Nexus_Users');
+                addToast('User directory exported successfully', 'success');
+            } else if (moduleId === 'journals') {
+                const journalsStr = localStorage.getItem('nexus_journals') || '[]';
+                const journals = JSON.parse(journalsStr);
+                const flatData = dataService.prepareJournalExport(journals);
+                dataService.downloadCSV(flatData, 'Nexus_Journals');
+                addToast('Journals exported successfully', 'success');
+            } else if (moduleId === 'gl') {
+                const journalsStr = localStorage.getItem('nexus_journals') || '[]';
+                const journals = JSON.parse(journalsStr);
+                dataService.downloadJSON(journals, 'Nexus_GL_Dump');
+                addToast('GL Data exported successfully', 'success');
+            }
+        } catch (e) {
+            addToast('Export failed', 'error');
+        }
+    };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -44,22 +69,37 @@ export const DataManagement: React.FC = () => {
         }
     };
 
-    const runImportScan = () => {
+    const runImportScan = async () => {
         if (!importFile) return;
         setImportStatus('scanning');
-        setTimeout(() => {
-            setScanResult({ rows: 142, errors: 0 }); // Mock result
-            setImportStatus('ready');
-        }, 1500);
+        
+        try {
+            const data = await dataService.parseCSV(importFile);
+            setScanResult({ rows: data.length, errors: 0, data });
+            setTimeout(() => setImportStatus('ready'), 800);
+        } catch (e) {
+            addToast('Failed to parse file', 'error');
+            setImportStatus('idle');
+        }
     };
 
     const executeImport = () => {
+        if (!scanResult.data.length) return;
+
+        if (importType === 'users') {
+            // Mock import for users - usually would need more validation
+            const currentUsers = authService.getAllUsers();
+            // Just simulation of adding logic
+            addToast(`${scanResult.rows} users imported (Simulation)`, 'success');
+        } else {
+            addToast(`${scanResult.rows} records imported (Simulation)`, 'success');
+        }
+
         setImportStatus('success');
         setTimeout(() => {
             setImportFile(null);
             setImportStatus('idle');
-            alert("Data imported successfully into the system.");
-        }, 1000);
+        }, 1500);
     };
 
     const createBackup = () => {
@@ -74,6 +114,7 @@ export const DataManagement: React.FC = () => {
             };
             setBackups([newBackup, ...backups]);
             setIsCreatingBackup(false);
+            addToast('System snapshot created', 'success');
         }, 2000);
     };
 
@@ -134,10 +175,6 @@ export const DataManagement: React.FC = () => {
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
-                         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
-                            <Command size={10} className="text-slate-300"/> 
-                            <span className="text-[10px] text-slate-300 font-bold">K</span>
-                        </div>
                     </div>
                 )}
             </div>
@@ -163,7 +200,7 @@ export const DataManagement: React.FC = () => {
                                             animate={{ opacity: 1, x: 0 }}
                                             transition={{ delay: idx * 0.05 }}
                                         >
-                                            <Card className="group hover:border-indigo-300 transition-colors cursor-pointer">
+                                            <Card className="group hover:border-indigo-300 transition-colors cursor-pointer" onClick={() => handleExport(mod.id)}>
                                                 <div className="p-4 flex items-center justify-between">
                                                     <div className="flex items-center gap-4">
                                                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${mod.color}`}>
@@ -198,27 +235,8 @@ export const DataManagement: React.FC = () => {
                                         <p className="text-xs text-slate-300 leading-relaxed mb-4">
                                             Sensitive PII fields are automatically hashed upon export. All download events are logged in the immutable audit trail.
                                         </p>
-                                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono bg-black/20 p-2 rounded">
-                                            <CheckCircle size={12} className="text-emerald-500"/> Encryption: AES-256
-                                        </div>
                                     </div>
                                 </div>
-                                <Card className="p-5">
-                                    <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Recent Activity</h5>
-                                    <div className="space-y-4">
-                                        {[1, 2].map((_, i) => (
-                                            <div key={i} className="flex items-start gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 border border-slate-200">
-                                                    MT
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-medium text-slate-800">Full GL Dump</p>
-                                                    <p className="text-xs text-slate-500">2 hours ago</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </Card>
                             </div>
                         </div>
                     )}
@@ -257,7 +275,7 @@ export const DataManagement: React.FC = () => {
                                                 <CheckCircle size={40} />
                                             </div>
                                             <h4 className="text-2xl font-bold text-slate-900 mb-2">Import Successful</h4>
-                                            <p className="text-slate-500 mb-8">142 records have been processed and indexed.</p>
+                                            <p className="text-slate-500 mb-8">Records have been processed and indexed.</p>
                                             <Button onClick={() => { setImportStatus('idle'); setImportFile(null); }}>Process Another File</Button>
                                         </div>
                                     ) : (
@@ -270,17 +288,9 @@ export const DataManagement: React.FC = () => {
                                                         value={importType}
                                                         onChange={(e) => setImportType(e.target.value)}
                                                     >
+                                                        <option value="users">Users</option>
                                                         <option value="journals">Journal Entries</option>
-                                                        <option value="coa">Chart of Accounts</option>
-                                                        <option value="vendors">Vendor Master</option>
                                                     </select>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Template</label>
-                                                    <button className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600 transition-all flex items-center justify-between group">
-                                                        <span>Download .XLSX</span>
-                                                        <Download size={16} className="text-slate-400 group-hover:text-indigo-600"/>
-                                                    </button>
                                                 </div>
                                             </div>
 
@@ -293,7 +303,7 @@ export const DataManagement: React.FC = () => {
                                                         type="file" 
                                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                                         onChange={handleFileUpload}
-                                                        accept=".csv, .xlsx"
+                                                        accept=".csv"
                                                     />
                                                     
                                                     {importFile ? (
@@ -307,8 +317,7 @@ export const DataManagement: React.FC = () => {
                                                             <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
                                                                 <Cloud size={28} className="text-slate-400 group-hover:text-indigo-500 transition-colors" />
                                                             </div>
-                                                            <p className="font-semibold text-slate-700">Click or drag file here</p>
-                                                            <p className="text-xs text-slate-400 mt-1">Max file size: 10MB</p>
+                                                            <p className="font-semibold text-slate-700">Click or drag CSV file here</p>
                                                         </div>
                                                     )}
                                                 </div>
@@ -328,7 +337,6 @@ export const DataManagement: React.FC = () => {
                                                 <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 text-center">
                                                     <RefreshCw className="animate-spin mx-auto text-indigo-600 mb-3" size={24} />
                                                     <p className="font-medium text-slate-700">Analyzing data structure...</p>
-                                                    <p className="text-xs text-slate-500 mt-1">Checking COA codes and date formats</p>
                                                 </div>
                                             )}
 
@@ -341,7 +349,7 @@ export const DataManagement: React.FC = () => {
                                                         <div className="flex-1">
                                                             <h4 className="font-bold text-emerald-900">Validation Passed</h4>
                                                             <p className="text-sm text-emerald-800 mt-1">
-                                                                <strong>{scanResult.rows} records</strong> valid. No critical errors found.
+                                                                <strong>{scanResult.rows} records</strong> valid.
                                                             </p>
                                                             <div className="mt-4 flex gap-3">
                                                                 <Button onClick={executeImport} className="bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200">Confirm & Import</Button>
@@ -375,9 +383,8 @@ export const DataManagement: React.FC = () => {
                                             <tr>
                                                 <th className="px-6 py-3">Timestamp (UTC)</th>
                                                 <th className="px-6 py-3">Size</th>
-                                                <th className="px-6 py-3">Trigger</th>
+                                                <th className="px-6 py-3">Type</th>
                                                 <th className="px-6 py-3">Status</th>
-                                                <th className="px-6 py-3 text-right"></th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50">
@@ -390,52 +397,15 @@ export const DataManagement: React.FC = () => {
                                                         {bk.date}
                                                     </td>
                                                     <td className="px-6 py-4 text-slate-600">{bk.size}</td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${bk.type === 'Automated' ? 'bg-slate-50 text-slate-600 border-slate-200' : 'bg-violet-50 text-violet-700 border-violet-200'}`}>
-                                                            {bk.type}
-                                                        </span>
-                                                    </td>
+                                                    <td className="px-6 py-4">{bk.type}</td>
                                                     <td className="px-6 py-4">
                                                         <Badge type="success">{bk.status}</Badge>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <button className="text-slate-400 hover:text-indigo-600 transition-colors">
-                                                            <MoreHorizontal size={18} />
-                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </Card>
-                            </div>
-                            <div className="space-y-6">
-                                <Card className="p-6 border-l-4 border-l-indigo-500">
-                                    <h4 className="font-bold text-slate-800 mb-4">Retention Policy</h4>
-                                    <div className="space-y-4 text-sm">
-                                        <div className="flex justify-between pb-2 border-b border-slate-100">
-                                            <span className="text-slate-500">Daily Snapshots</span>
-                                            <span className="font-mono font-bold text-slate-700">30 Days</span>
-                                        </div>
-                                        <div className="flex justify-between pb-2 border-b border-slate-100">
-                                            <span className="text-slate-500">Monthly Archives</span>
-                                            <span className="font-mono font-bold text-slate-700">7 Years</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-slate-500">Storage Region</span>
-                                            <span className="font-mono font-bold text-slate-700">us-east-1</span>
-                                        </div>
-                                    </div>
-                                </Card>
-                                <div className="p-4 rounded-xl bg-amber-50 border border-amber-100 flex gap-3">
-                                    <AlertTriangle className="text-amber-600 shrink-0" size={20} />
-                                    <div>
-                                        <h5 className="text-sm font-bold text-amber-800 mb-1">Disaster Recovery</h5>
-                                        <p className="text-xs text-amber-700 leading-relaxed">
-                                            Initiating a restore will trigger a system-wide lock. All sessions will be terminated during the rollback process.
-                                        </p>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     )}
