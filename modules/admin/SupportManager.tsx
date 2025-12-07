@@ -19,22 +19,23 @@ export const SupportManager: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const loadTickets = () => {
-        setTickets(supportService.getAllTickets());
+    const loadTickets = async () => {
+        const allTickets = await supportService.getAllTickets();
+        setTickets(allTickets);
     };
 
-    const handleReply = (id: string) => {
+    const handleReply = async (id: string) => {
         if (!replyText.trim()) return;
-        supportService.respondToTicket(id, replyText);
+        await supportService.respondToTicket(id, replyText);
         setReplyText('');
         setSelectedTicketId(null);
-        loadTickets();
+        await loadTickets();
     };
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm('Delete this ticket history?')) {
-            supportService.deleteTicket(id);
-            loadTickets();
+            await supportService.deleteTicket(id);
+            await loadTickets();
             if (selectedTicketId === id) setSelectedTicketId(null);
         }
     };

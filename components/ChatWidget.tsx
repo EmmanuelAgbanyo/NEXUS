@@ -31,8 +31,11 @@ export const ChatWidget: React.FC = () => {
 
     useEffect(() => {
         if (user && isOpen) {
-            const history = supportService.getUserTickets(user.id);
-            setMessages(history);
+            const fetchHistory = async () => {
+                const history = await supportService.getUserTickets(user.id);
+                setMessages(history);
+            };
+            fetchHistory();
         }
     }, [isOpen, user]);
 

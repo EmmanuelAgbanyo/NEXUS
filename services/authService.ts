@@ -49,10 +49,10 @@ async function writeCloudArray<T = any>(key: string, arr: T[]) {
 
 export const authService = {
   // --- Session Management ---
-  getSession: (): User | null => {
+  getSession: async (): Promise<User | null> => {
     try {
-      const stored = localStorage.getItem(SESSION_KEY);
-      return stored ? JSON.parse(stored) : null;
+      const stored = await loadFromCloud(SESSION_KEY);
+      return stored ? (stored as User) : null;
     } catch (e) {
       return null;
     }
@@ -74,7 +74,7 @@ export const authService = {
         department: 'System',
         status: 'Active',
       };
-      localStorage.setItem(SESSION_KEY, JSON.stringify(adminUser));
+      await saveToCloud(SESSION_KEY, adminUser);
       return { success: true, user: adminUser };
     }
 
@@ -112,7 +112,7 @@ export const authService = {
         requiresPasswordChange: (found as any).requiresPasswordChange
       };
 
-      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
+      await saveToCloud(SESSION_KEY, sessionUser);
       return { success: true, user: sessionUser };
 
     } catch (error) {
@@ -143,13 +143,13 @@ export const authService = {
       lastLogin: new Date().toISOString()
     };
 
-    localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
+    await saveToCloud(SESSION_KEY, sessionUser);
     return { success: true };
   },
 
   logout: async () => {
     await delay(300);
-    localStorage.removeItem(SESSION_KEY);
+    await saveToCloud(SESSION_KEY, null);
   },
 
   // --- Data Access ---
@@ -362,7 +362,7 @@ export const authService = {
         status: updatedUser.status,
         lastLogin: new Date().toISOString()
       };
-      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
+      await saveToCloud(SESSION_KEY, sessionUser);
 
       return { success: true };
 
@@ -377,10 +377,10 @@ export const authService = {
     await delay(1500);
 
     // Preserve current session if it's the super admin
-    const currentSession = localStorage.getItem(SESSION_KEY);
+    const currentSession = await loadFromCloud(SESSION_KEY);
     let preserveSession = false;
     if (currentSession) {
-      const s = JSON.parse(currentSession);
+      const s = currentSession as User;
       if (s.email === 'admin@nexus.com') preserveSession = true;
     }
 
@@ -402,7 +402,7 @@ export const authService = {
     await writeCloudArray('users', [superAdmin]);
 
     if (!preserveSession) {
-      localStorage.removeItem(SESSION_KEY);
+      await saveToCloud(SESSION_KEY, null);
     }
 
     return true;

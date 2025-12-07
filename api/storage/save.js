@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     const blob = await put(
       \data/\.json\,
       JSON.stringify(value),
-      { access: 'public' }
+      { access: 'protected', token: process.env.BLOB_READ_WRITE_TOKEN }
     );
 
     return res.status(200).json({ success: true, url: blob.url });

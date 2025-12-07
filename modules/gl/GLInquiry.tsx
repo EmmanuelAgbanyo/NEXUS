@@ -10,6 +10,7 @@ import { GLAnalytics } from './GLAnalytics';
 import { authService } from '../../services/authService';
 import { dataService } from '../../services/dataService';
 import { useToast } from '../../components/ui/Toast';
+import { loadFromCloud } from '../../utils/cloudStorage';
 
 // ... (Constants, FilterSection, Props interfaces kept same) ...
 const DEMO_GL_DATA: JournalEntry[] = [
@@ -103,17 +104,20 @@ export const GLInquiry: React.FC<{ initialAccountFilter?: string }> = ({ initial
     }, [initialAccountFilter]);
 
     useEffect(() => {
-        const user = authService.getSession();
-        if (user) {
-            const stored = localStorage.getItem('nexus_journals');
-            if (stored) {
-                setGlData(JSON.parse(stored));
-            } else if (user.companyId === '1') {
-                setGlData(DEMO_GL_DATA);
-            } else {
-                setGlData([]);
+        const loadInitialData = async () => {
+            const user = await authService.getSession();
+            if (user) {
+                const stored = await loadFromCloud('nexus_journals');
+                if (stored) {
+                    setGlData(stored as JournalEntry[]);
+                } else if (user.companyId === '1') {
+                    setGlData(DEMO_GL_DATA);
+                } else {
+                    setGlData([]);
+                }
             }
-        }
+        };
+        loadInitialData();
     }, []);
 
     // Data Processing (Memoized transactions flatten logic - same as before)

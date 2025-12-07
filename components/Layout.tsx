@@ -6,6 +6,7 @@ import { Role } from '../types';
 import { Badge, Button } from './ui/UtilityComponents';
 import { ModernInput } from './ui/ModernInput';
 import { authService } from '../services/authService';
+import { saveToCloud } from '../utils/cloudStorage';
 import { ChatWidget } from './ChatWidget';
 
 interface LayoutProps {
@@ -167,10 +168,17 @@ const NotificationsMenu = () => {
 const UserProfileMenu = ({ onLogout }: { onLogout: () => void }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
+    const [user, setUser] = useState<any>(null);
     const ref = useRef<HTMLDivElement>(null);
     useOnClickOutside(ref, () => setIsOpen(false));
     
-    const user = authService.getSession();
+    useEffect(() => {
+        const fetchUser = async () => {
+            const currentUser = await authService.getSession();
+            setUser(currentUser);
+        };
+        fetchUser();
+    }, []);
 
     return (
         <>
@@ -238,12 +246,12 @@ const EditProfileModal = ({ user, onClose }: { user: any, onClose: () => void })
     const [dept, setDept] = useState(user?.department || '');
     const [email, setEmail] = useState(user?.email || ''); // Read only usually, but editable for demo logic if needed
 
-    const handleSave = () => {
+    const handleSave = async () => {
         // Mock update
         const updated = { ...user, fullName: name, department: dept };
         // In a real app, call authService.updateProfile(updated)
         // For now, simple session update simulation
-        localStorage.setItem('nexus_session', JSON.stringify(updated));
+        await saveToCloud('nexus_session', updated);
         window.location.reload(); // Quick way to refresh session state in context
     };
 

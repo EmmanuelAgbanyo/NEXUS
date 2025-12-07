@@ -2,6 +2,7 @@
 import { SupportTicket, TicketStatus, User } from '../types';
 import { getChatResponse } from './geminiService';
 import { authService } from './authService';
+import { saveToCloud, loadFromCloud } from '../utils/cloudStorage';
 
 const TICKETS_KEY = 'nexus_support_tickets';
 
@@ -25,29 +26,31 @@ export const supportService = {
         };
 
         // 3. Persist
-        const tickets = supportService.getAllTickets();
+        const tickets = await supportService.getAllTickets();
         tickets.push(newTicket);
-        localStorage.setItem(TICKETS_KEY, JSON.stringify(tickets));
+        await saveToCloud(TICKETS_KEY, tickets);
 
         return newTicket;
     },
 
-    getAllTickets: (): SupportTicket[] => {
-        const stored = localStorage.getItem(TICKETS_KEY);
-        return stored ? JSON.parse(stored) : [];
+    getAllTickets: async (): Promise<SupportTicket[]> => {
+        const stored = await loadFromCloud(TICKETS_KEY);
+        return stored ? (stored as SupportTicket[]) : [];
     },
 
-    getCompanyTickets: (companyId: string): SupportTicket[] => {
-        return supportService.getAllTickets().filter(t => t.companyId === companyId);
+    getCompanyTickets: async (companyId: string): Promise<SupportTicket[]> => {
+        const allTickets = await supportService.getAllTickets();
+        return allTickets.filter(t => t.companyId === companyId);
     },
 
-    getUserTickets: (userId: string): SupportTicket[] => {
-        return supportService.getAllTickets().filter(t => t.userId === userId);
+    getUserTickets: async (userId: string): Promise<SupportTicket[]> => {
+        const allTickets = await supportService.getAllTickets();
+        return allTickets.filter(t => t.userId === userId);
     },
 
     // Admin Reply
-    respondToTicket: (ticketId: string, response: string) => {
-        const tickets = supportService.getAllTickets();
+    respondToTicket: async (ticketId: string, response: string) => {
+        const tickets = await supportService.getAllTickets();
         const updated = tickets.map(t => {
             if (t.id === ticketId) {
                 return { 
@@ -59,12 +62,12 @@ export const supportService = {
             }
             return t;
         });
-        localStorage.setItem(TICKETS_KEY, JSON.stringify(updated));
+        await saveToCloud(TICKETS_KEY, updated);
     },
 
-    deleteTicket: (ticketId: string) => {
-        const tickets = supportService.getAllTickets();
+    deleteTicket: async (ticketId: string) => {
+        const tickets = await supportService.getAllTickets();
         const filtered = tickets.filter(t => t.id !== ticketId);
-        localStorage.setItem(TICKETS_KEY, JSON.stringify(filtered));
+        await saveToCloud(TICKETS_KEY, filtered);
     }
 };

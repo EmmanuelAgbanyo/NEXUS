@@ -7,6 +7,7 @@ import { Plus, Search, Sparkles, FolderTree, ArrowRight, Edit, Trash2, X, Save, 
 import { COAAccount, AccountType } from '../../types';
 import { suggestCOACode, generateCOAFromDocument } from '../../services/geminiService';
 import { motion, AnimatePresence } from 'framer-motion';
+import { saveToCloud, loadFromCloud } from '../../utils/cloudStorage';
 
 const COA_STORAGE_KEY = 'nexus_coa';
 
@@ -59,20 +60,26 @@ export const ChartOfAccounts: React.FC = () => {
 
   // Load from Storage
   useEffect(() => {
-      const stored = localStorage.getItem(COA_STORAGE_KEY);
-      if (stored) {
-          setAccounts(JSON.parse(stored));
-      } else {
-          setAccounts(INITIAL_COA);
-          localStorage.setItem(COA_STORAGE_KEY, JSON.stringify(INITIAL_COA));
-      }
+      const loadInitialCOA = async () => {
+          const stored = await loadFromCloud(COA_STORAGE_KEY);
+          if (stored) {
+              setAccounts(stored as COAAccount[]);
+          } else {
+              setAccounts(INITIAL_COA);
+              await saveToCloud(COA_STORAGE_KEY, INITIAL_COA);
+          }
+      };
+      loadInitialCOA();
   }, []);
 
   // Save to Storage
   useEffect(() => {
-      if (accounts.length > 0) {
-          localStorage.setItem(COA_STORAGE_KEY, JSON.stringify(accounts));
-      }
+      const saveCOA = async () => {
+          if (accounts.length > 0) {
+              await saveToCloud(COA_STORAGE_KEY, accounts);
+          }
+      };
+      saveCOA();
   }, [accounts]);
 
   const stats = useMemo(() => {
