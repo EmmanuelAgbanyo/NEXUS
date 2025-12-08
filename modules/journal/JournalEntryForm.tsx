@@ -7,7 +7,6 @@ import { JournalType, JournalLine, AccountType, JournalEntry, JournalStatus, COA
 import { Plus, Trash2, Save, Send, AlertCircle, Calculator, Search, CheckCircle, Clock, CalendarDays, Globe, Undo, Redo, Sparkles, Loader2, FileText, Hash, Coins, ChevronDown, RefreshCw } from 'lucide-react';
 import { suggestJournalLines } from '../../services/geminiService';
 import { motion, AnimatePresence } from 'framer-motion';
-import { loadFromCloud } from '../../src/utils/cloudStorage.js';
 
 // Constants
 const MIN_DESC_LENGTH = 10; 
@@ -140,13 +139,10 @@ export const JournalEntryForm: React.FC<{ onPost: (entry: JournalEntry) => void 
 
     useEffect(() => {
         // Load COA from system persistence
-        const loadCOA = async () => {
-            const stored = await loadFromCloud('nexus_coa');
-            if (stored) {
-                setCoa(stored as COAAccount[]);
-            }
-        };
-        loadCOA();
+        const stored = localStorage.getItem('nexus_coa');
+        if (stored) {
+            setCoa(JSON.parse(stored));
+        }
     }, []);
 
     // Helpers

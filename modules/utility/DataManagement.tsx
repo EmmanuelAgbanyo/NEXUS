@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { dataService } from '../../services/dataService';
 import { authService } from '../../services/authService';
 import { useToast } from '../../components/ui/Toast';
-import { loadFromCloud } from '../../src/utils/cloudStorage.js';
 
 type Tab = 'export' | 'import' | 'backup';
 
@@ -40,20 +39,22 @@ export const DataManagement: React.FC = () => {
 
     // --- Actions ---
 
-    const handleExport = async (moduleId: string) => {
+    const handleExport = (moduleId: string) => {
         try {
             if (moduleId === 'users') {
-                const users = await authService.getAllUsers();
+                const users = authService.getAllUsers();
                 dataService.downloadCSV(users, 'Nexus_Users');
                 addToast('User directory exported successfully', 'success');
             } else if (moduleId === 'journals') {
-                const journals = await loadFromCloud('nexus_journals') || [];
-                const flatData = dataService.prepareJournalExport(journals as any);
+                const journalsStr = localStorage.getItem('nexus_journals') || '[]';
+                const journals = JSON.parse(journalsStr);
+                const flatData = dataService.prepareJournalExport(journals);
                 dataService.downloadCSV(flatData, 'Nexus_Journals');
                 addToast('Journals exported successfully', 'success');
             } else if (moduleId === 'gl') {
-                const journals = await loadFromCloud('nexus_journals') || [];
-                dataService.downloadJSON(journals as any, 'Nexus_GL_Dump');
+                const journalsStr = localStorage.getItem('nexus_journals') || '[]';
+                const journals = JSON.parse(journalsStr);
+                dataService.downloadJSON(journals, 'Nexus_GL_Dump');
                 addToast('GL Data exported successfully', 'success');
             }
         } catch (e) {
@@ -82,12 +83,12 @@ export const DataManagement: React.FC = () => {
         }
     };
 
-    const executeImport = async () => {
+    const executeImport = () => {
         if (!scanResult.data.length) return;
 
         if (importType === 'users') {
             // Mock import for users - usually would need more validation
-            const currentUsers = await authService.getAllUsers();
+            const currentUsers = authService.getAllUsers();
             // Just simulation of adding logic
             addToast(`${scanResult.rows} users imported (Simulation)`, 'success');
         } else {

@@ -5,7 +5,6 @@ import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, FileText, X } from '
 import { dataService } from '../../services/dataService';
 import { useToast } from '../../components/ui/Toast';
 import { JournalEntry, JournalStatus, JournalType } from '../../types';
-import { saveToCloud, loadFromCloud } from '../../src/utils/cloudStorage.js';
 
 export const JournalUpload: React.FC = () => {
     const [dragActive, setDragActive] = useState(false);
@@ -62,7 +61,7 @@ export const JournalUpload: React.FC = () => {
         }
     };
 
-    const executeImport = async () => {
+    const executeImport = () => {
         try {
             // Convert flat CSV rows to Journal Objects
             // Assuming simplified structure for demo: One row per journal line, grouped by 'Journal Reference'
@@ -107,9 +106,9 @@ export const JournalUpload: React.FC = () => {
             });
 
             // Persist
-            const existing = await loadFromCloud('nexus_journals');
-            const currentJournals = existing ? (existing as JournalEntry[]) : [];
-            await saveToCloud('nexus_journals', [...entries, ...currentJournals]);
+            const existing = localStorage.getItem('nexus_journals');
+            const currentJournals = existing ? JSON.parse(existing) : [];
+            localStorage.setItem('nexus_journals', JSON.stringify([...entries, ...currentJournals]));
 
             addToast(`${entries.length} Journals imported successfully`, 'success');
             setFile(null);

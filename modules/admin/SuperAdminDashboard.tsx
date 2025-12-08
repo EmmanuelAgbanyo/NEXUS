@@ -38,7 +38,6 @@ const HealthGauge = ({ score }: { score: number }) => {
 
 export const SuperAdminDashboard: React.FC = () => {
     const [companies, setCompanies] = useState<Company[]>([]);
-    const [allUsers, setAllUsers] = useState<User[]>([]);
     const [showProvisionModal, setShowProvisionModal] = useState(false);
     
     // Manage Tenant State
@@ -67,34 +66,18 @@ export const SuperAdminDashboard: React.FC = () => {
     const [view, setView] = useState<'tenants' | 'support'>('tenants');
 
     useEffect(() => {
-        loadData();
+        loadCompanies();
     }, []);
 
     useEffect(() => {
-        const fetchCompanyDetails = async () => {
-            if (selectedCompany) {
-                // Now filter from allUsers instead of fetching
-                const users = allUsers.filter(u => u.companyId === selectedCompany.id);
-                setCompanyUsers(users);
-                setCompanyLogs(authService.getTenantLogs(selectedCompany.id));
-            }
-        };
-        fetchCompanyDetails();
-    }, [selectedCompany, allUsers]);
+        if (selectedCompany) {
+            setCompanyUsers(authService.getCompanyUsers(selectedCompany.id));
+            setCompanyLogs(authService.getTenantLogs(selectedCompany.id));
+        }
+    }, [selectedCompany]);
 
-    const loadData = async () => {
-        const [companiesData, usersData] = await Promise.all([
-            authService.getCompanies(),
-            authService.getAllUsers()
-        ]);
-        
-        const companiesWithUserCount = companiesData.map(company => ({
-            ...company,
-            userCount: usersData.filter(u => u.companyId === company.id).length
-        }));
-
-        setCompanies(companiesWithUserCount);
-        setAllUsers(usersData);
+    const loadCompanies = () => {
+        setCompanies(authService.getCompanies());
     };
 
     const handleCreate = async () => {
@@ -104,7 +87,7 @@ export const SuperAdminDashboard: React.FC = () => {
         
         if (result.success && result.tokenData) {
             setSuccessData(result.tokenData);
-            await loadData(); // Changed from loadCompanies
+            loadCompanies();
             addToast('Company provisioned successfully', 'success');
         } else {
             addToast('Failed to create company. Domain might be taken.', 'error');
@@ -134,7 +117,7 @@ export const SuperAdminDashboard: React.FC = () => {
         const newStatus = company.status === 'Active' ? 'Suspended' : 'Active';
         if (window.confirm(`Are you sure you want to ${newStatus === 'Active' ? 'Activate' : 'Suspend'} ${company.name}?`)) {
             await authService.updateCompanyStatus(company.id, newStatus);
-            await loadData(); // Changed from loadCompanies
+            loadCompanies();
             if (selectedCompany) setSelectedCompany({ ...selectedCompany, status: newStatus });
             addToast(`Tenant ${newStatus === 'Active' ? 'Activated' : 'Suspended'}`, newStatus === 'Active' ? 'success' : 'warning');
         }
@@ -195,7 +178,7 @@ export const SuperAdminDashboard: React.FC = () => {
 
     // Stats
     const totalTenants = companies.length;
-    const totalUsers = allUsers.filter(u => u.companyId !== '0').length;
+    const totalUsers = companies.reduce((acc, curr) => acc + (authService.getCompanyUsers(curr.id).length || 0), 0);
 
     return (
         <div className="space-y-8 relative h-full">
@@ -298,6 +281,7 @@ export const SuperAdminDashboard: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-100 bg-white">
                                 {filteredCompanies.map(company => {
+                                    const userCount = authService.getCompanyUsers(company.id).length;
                                     const activeModules = Object.values(company.features).filter(Boolean).length;
                                     const healthScore = company.status === 'Active' ? 95 : 20; // Simulated score
                                     
@@ -328,9 +312,9 @@ export const SuperAdminDashboard: React.FC = () => {
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-indigo-500" style={{ width: `${((company.userCount || 0) / company.maxUsers) * 100}%` }}></div>
+                                                        <div className="h-full bg-indigo-500" style={{ width: `${(userCount / company.maxUsers) * 100}%` }}></div>
                                                     </div>
-                                                    <span className="text-xs font-medium text-slate-600">{company.userCount || 0}/{company.maxUsers}</span>
+                                                    <span className="text-xs font-medium text-slate-600">{userCount}/{company.maxUsers}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">

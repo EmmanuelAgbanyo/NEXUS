@@ -25,28 +25,24 @@ function App() {
   const [subContext, setSubContext] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      // 1. Check for Onboarding Token in URL
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get('token');
-      if (token) {
-          setOnboardingToken(token);
-          return;
-      }
+    // 1. Check for Onboarding Token in URL
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+        setOnboardingToken(token);
+        return;
+    }
 
-      // 2. Check Session
-      const user = await authService.getSession();
-      if (user) {
-        setIsAuthenticated(true);
-        setUserRole(user.role);
-        // Redirect Super Admin to companies by default if on dashboard
-        if (user.role === Role.SUPER_ADMIN && activeModule === 'dashboard') {
-            setActiveModule('companies');
-        }
+    // 2. Check Session
+    const user = authService.getSession();
+    if (user) {
+      setIsAuthenticated(true);
+      setUserRole(user.role);
+      // Redirect Super Admin to companies by default if on dashboard
+      if (user.role === Role.SUPER_ADMIN && activeModule === 'dashboard') {
+          setActiveModule('companies');
       }
-    };
-
-    initializeAuth();
+    }
   }, []);
 
   const handleNavigate = (module: string, tab?: string) => {
@@ -68,12 +64,12 @@ function App() {
           <ToastProvider>
               <Onboarding 
                 token={onboardingToken} 
-                onComplete={async () => {
+                onComplete={() => {
                     // Remove query param
                     window.history.replaceState({}, document.title, window.location.pathname);
                     setOnboardingToken(null);
                     // Refresh session
-                    const user = await authService.getSession();
+                    const user = authService.getSession();
                     if(user) {
                         setIsAuthenticated(true);
                         setUserRole(user.role);
@@ -113,9 +109,9 @@ function App() {
         if (authView === 'login') {
           return (
             <LoginPage 
-              onLogin={async () => {
+              onLogin={() => {
                   setIsAuthenticated(true);
-                  const user = await authService.getSession();
+                  const user = authService.getSession();
                   if(user) {
                       setUserRole(user.role);
                       if (user.role === Role.SUPER_ADMIN) setActiveModule('companies');
@@ -127,9 +123,9 @@ function App() {
         } else {
           return (
             <SignupPage 
-              onLogin={async () => {
+              onLogin={() => {
                   setIsAuthenticated(true);
-                  const user = await authService.getSession();
+                  const user = authService.getSession();
                   if(user) setUserRole(user.role);
               }} 
               onSwitch={() => setAuthView('login')} 

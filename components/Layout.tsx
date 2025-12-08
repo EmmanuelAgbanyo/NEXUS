@@ -6,7 +6,6 @@ import { Role } from '../types';
 import { Badge, Button } from './ui/UtilityComponents';
 import { ModernInput } from './ui/ModernInput';
 import { authService } from '../services/authService';
-import { saveToCloud } from '../src/utils/cloudStorage.js';
 import { ChatWidget } from './ChatWidget';
 
 interface LayoutProps {
@@ -168,17 +167,10 @@ const NotificationsMenu = () => {
 const UserProfileMenu = ({ onLogout }: { onLogout: () => void }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
-    const [user, setUser] = useState<any>(null);
     const ref = useRef<HTMLDivElement>(null);
     useOnClickOutside(ref, () => setIsOpen(false));
     
-    useEffect(() => {
-        const fetchUser = async () => {
-            const currentUser = await authService.getSession();
-            setUser(currentUser);
-        };
-        fetchUser();
-    }, []);
+    const user = authService.getSession();
 
     return (
         <>
@@ -189,7 +181,7 @@ const UserProfileMenu = ({ onLogout }: { onLogout: () => void }) => {
                 >
                    <div className="text-right hidden md:block">
                       <p className="text-sm font-bold text-slate-800 leading-none group-hover:text-indigo-700 transition-colors">{user?.fullName || 'User'}</p>
-                      <p className="text-[11px] text-slate-500 font-medium mt-1">{user?.role || user?.department || 'Staff'}</p>
+                      <p className="text-[11px] text-slate-500 font-medium mt-1">{user?.department || 'Staff'}</p>
                    </div>
                    <motion.div 
                      whileHover={{ scale: 1.05 }}
@@ -246,12 +238,12 @@ const EditProfileModal = ({ user, onClose }: { user: any, onClose: () => void })
     const [dept, setDept] = useState(user?.department || '');
     const [email, setEmail] = useState(user?.email || ''); // Read only usually, but editable for demo logic if needed
 
-    const handleSave = async () => {
+    const handleSave = () => {
         // Mock update
         const updated = { ...user, fullName: name, department: dept };
         // In a real app, call authService.updateProfile(updated)
         // For now, simple session update simulation
-        await saveToCloud('nexus_session', updated);
+        localStorage.setItem('nexus_session', JSON.stringify(updated));
         window.location.reload(); // Quick way to refresh session state in context
     };
 

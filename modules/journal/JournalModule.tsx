@@ -8,7 +8,6 @@ import { PlusCircle, Search, UploadCloud, TrendingUp, AlertCircle, FileCheck, Ba
 import { JournalEntry, JournalStatus, JournalType } from '../../types';
 import { Card } from '../../components/ui/UtilityComponents';
 import { authService } from '../../services/authService';
-import { saveToCloud, loadFromCloud } from '../../src/utils/cloudStorage.js';
 
 const JOURNALS_KEY = 'nexus_journals';
 
@@ -42,26 +41,23 @@ export const JournalModule: React.FC<{ initialTab?: string }> = ({ initialTab })
 
     // Initial Data Load
     useEffect(() => {
-        const loadInitialData = async () => {
-            const user = await authService.getSession();
-            const stored = await loadFromCloud(JOURNALS_KEY);
-            let loadedEntries: JournalEntry[] = stored ? (stored as JournalEntry[]) : [];
+        const user = authService.getSession();
+        const stored = localStorage.getItem(JOURNALS_KEY);
+        let loadedEntries: JournalEntry[] = stored ? JSON.parse(stored) : [];
 
-            if (user) {
-                // If no data exists and it's the demo company, seed it
-                if (loadedEntries.length === 0 && user.companyId === '1') {
-                    loadedEntries = DEMO_JOURNALS;
-                    await saveToCloud(JOURNALS_KEY, loadedEntries);
-                }
-                setEntries(loadedEntries);
+        if (user) {
+            // If no data exists and it's the demo company, seed it
+            if (loadedEntries.length === 0 && user.companyId === '1') {
+                loadedEntries = DEMO_JOURNALS;
+                localStorage.setItem(JOURNALS_KEY, JSON.stringify(loadedEntries));
             }
-        };
-        loadInitialData();
+            setEntries(loadedEntries);
+        }
     }, []);
 
-    const saveEntries = async (newEntries: JournalEntry[]) => {
+    const saveEntries = (newEntries: JournalEntry[]) => {
         setEntries(newEntries);
-        await saveToCloud(JOURNALS_KEY, newEntries);
+        localStorage.setItem(JOURNALS_KEY, JSON.stringify(newEntries));
     };
 
     // Sync with prop navigation
@@ -75,24 +71,21 @@ export const JournalModule: React.FC<{ initialTab?: string }> = ({ initialTab })
             scrollContainerRef.current.scrollTop = 0;
         }
         // Reload persistence on tab change to catch uploads
-        const reloadEntries = async () => {
-            const stored = await loadFromCloud(JOURNALS_KEY);
-            if (stored) setEntries(stored as JournalEntry[]);
-        };
-        reloadEntries();
+        const stored = localStorage.getItem(JOURNALS_KEY);
+        if (stored) setEntries(JSON.parse(stored));
     }, [activeTab]);
 
     // Calculate Quick Stats
     const postedCount = entries.filter(e => e.status === JournalStatus.POSTED).length;
     const totalVolume = entries.reduce((acc, curr) => acc + curr.totalAmount, 0);
 
-    const handlePost = async (entry: JournalEntry) => {
+    const handlePost = (entry: JournalEntry) => {
         const updated = [entry, ...entries];
-        await saveEntries(updated);
+        saveEntries(updated);
         setActiveTab('enquiry');
     };
 
-    const handleReverse = async (original: JournalEntry) => {
+    const handleReverse = (original: JournalEntry) => {
         const reversalLines = original.lines.map(l => ({
             ...l,
             id: Math.random().toString(),
@@ -112,7 +105,7 @@ export const JournalModule: React.FC<{ initialTab?: string }> = ({ initialTab })
             transactionDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '-') 
         };
 
-        await saveEntries([reversal, ...entries]);
+        saveEntries([reversal, ...entries]);
     };
 
     const tabs = [
