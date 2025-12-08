@@ -21,13 +21,20 @@ export const ChatWidget: React.FC = () => {
     // Audio State
     const [isConnecting, setIsConnecting] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
+    const [user, setUser] = useState<any>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const inputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const processorRef = useRef<ScriptProcessorNode | null>(null);
     const nextStartTimeRef = useRef<number>(0);
     const sessionPromiseRef = useRef<Promise<any> | null>(null);
 
-    const user = authService.getSession();
+    useEffect(() => {
+        const loadUser = async () => {
+            const currentUser = await authService.getSession();
+            setUser(currentUser);
+        };
+        loadUser();
+    }, []);
 
     useEffect(() => {
         if (user && isOpen) {

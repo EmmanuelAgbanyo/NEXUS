@@ -8,12 +8,26 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing key parameter" });
     }
 
-    const blob = await get(`data/${key}.json`, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    if (!blob) return res.status(404).json({ error: "Not found" });
+    const blobPathOrUrl = `data/${key}.json`;
+    const blob = await get(blobPathOrUrl, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    
+    if (!blob) {
+      // Return empty array if blob doesn't exist
+      return res.status(200).json([]);
+    }
 
-    const text = await blob.text();
-    return res.status(200).json(JSON.parse(text));
+    // blob from Vercel is a web ReadableStream, need to get the text
+    const response = await fetch(blob.url);
+    if (!response.ok) {
+      return res.status(200).json([]);
+    }
+    
+    const text = await response.text();
+    const data = JSON.parse(text);
+    return res.status(200).json(data);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    console.error('GET error:', err);
+    // Return empty array on error instead of 500
+    return res.status(200).json([]);
   }
-}
+}}

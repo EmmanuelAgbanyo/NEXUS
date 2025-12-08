@@ -189,7 +189,7 @@ const UserProfileMenu = ({ onLogout }: { onLogout: () => void }) => {
                 >
                    <div className="text-right hidden md:block">
                       <p className="text-sm font-bold text-slate-800 leading-none group-hover:text-indigo-700 transition-colors">{user?.fullName || 'User'}</p>
-                      <p className="text-[11px] text-slate-500 font-medium mt-1">{user?.department || 'Staff'}</p>
+                      <p className="text-[11px] text-slate-500 font-medium mt-1">{user?.role || user?.department || 'Staff'}</p>
                    </div>
                    <motion.div 
                      whileHover={{ scale: 1.05 }}
